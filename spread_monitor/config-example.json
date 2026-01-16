@@ -1,5 +1,5 @@
 {
-  "collection_interval_minutes": 5,
+  "collection_interval_minutes": 1,
   "symbols": [ "XAUUSD" ],
   "data_directory": "./data",
   "log_directory": "./logs",
@@ -7,28 +7,72 @@
   "retry_delay_seconds": 5,
   "brokers": [
     {
-      "name": "Pepperstone",
+      "name": "Pepperstone Razor",
       "server": "Pepperstone-Demo",
-      "login": 12345678,
-      "password": "your_mt5_password",
+      "login": 61462124,
+      "password": "your_password_here",
       "path": "C:/Program Files/Pepperstone MetaTrader 5/terminal64.exe",
-      "symbol_suffix": ".a"
+      "symbol_suffix": ".a",
+      "website": "pepperstone.com",
+      "commission_per_lot": 7.00,
+      "commission_currency": "AUD",
+      "commission_free_symbols": [ "XAU", "XAG", "XPTUSD", "XPDUSD", "XBRUSD", "XTIUSD", "XNGUSD", "US500", "US30", "USTEC", "UK100", "GER40", "AUS200", "JPN225", "HK50", "EUSTX50", "FRA40", "CHINA50" ]
     },
     {
-      "name": "Fusion",
+      "name": "FusionMarkets Zero",
       "server": "FusionMarketsAU-Demo",
-      "login": 12345678,
-      "password": "your_mt5_password",
-      "path": "C:/Users/abhid/AppData/Roaming/Fusion Markets MT5 Terminal/terminal64.exe",
-      "symbol_suffix": ".r"
+      "login": 258536,
+      "password": "your_password_here",
+      "path": "C:/Program Files/Pepperstone MetaTrader 5/terminal64.exe",
+      "symbol_suffix": ".r",
+      "website": "fusionmarkets.com",
+      "commission_per_lot": 4.50,
+      "commission_currency": "AUD"
     },
     {
-      "name": "ThinkMarkets",
+      "name": "ThinkMarkets ThinkZero",
       "server": "ThinkMarkets-Demo",
-      "login": 12345678,
-      "password": "your_mt5_password",
-      "path": "C:/Program Files/TF Global Markets MetaTrader 5 Terminal/terminal64.exe",
-      "symbol_suffix": "x"
+      "login": 74444,
+      "password": "your_password_here",
+      "path": "C:/Program Files/Pepperstone MetaTrader 5/terminal64.exe",
+      "symbol_suffix": "x",
+      "website": "thinkmarkets.com",
+      "commission_per_lot": 7.00,
+      "commission_currency": "AUD"
+    },
+    {
+      "name": "ICMarkets Raw",
+      "server": "ICMarketsAU-Demo",
+      "login": 23005351,
+      "password": "your_password_here",
+      "path": "C:/Program Files/Pepperstone MetaTrader 5/terminal64.exe",
+      "symbol_suffix": ".a",
+      "website": "icmarkets.com.au",
+      "commission_per_lot": 9.00,
+      "commission_currency": "AUD"
+    },
+    {
+      "name": "VantageMarkets Raw",
+      "server": "VantageGlobalPrimeAU-Demo",
+      "login": 11237748,
+      "password": "your_password_here",
+      "path": "C:/Program Files/Pepperstone MetaTrader 5/terminal64.exe",
+      "symbol_suffix": "+",
+      "website": "vantagemarkets.com",
+      "commission_per_lot": 5.00,
+      "commission_currency": "AUD",
+      "commission_free_symbols": [ "XAU", "XAG" ]
+    },
+    {
+      "name": "FPMarkets Raw",
+      "server": "FPMarkets-Demo",
+      "login": 7376732,
+      "password": "your_password_here",
+      "path": "C:/Program Files/Pepperstone MetaTrader 5/terminal64.exe",
+      "symbol_suffix": ".r",
+      "website": "fpmarkets.com",
+      "commission_per_lot": 7.00,
+      "commission_currency": "AUD"
     }
   ]
 }

@@ -1,0 +1,522 @@
+{% extends "base.html" %}
+
+{% block title %}Trading Costs - Spread Monitor{% endblock %}
+
+{% block extra_css %}
+<style>
+    .broker-logo {
+        width: 24px;
+        height: 24px;
+        object-fit: contain;
+        margin-right: 8px;
+        border-radius: 4px;
+    }
+    .broker-name-wrapper {
+        display: flex;
+        align-items: center;
+    }
+    .sortable-header {
+        cursor: pointer;
+        user-select: none;
+    }
+    .sortable-header:hover {
+        background-color: #e9ecef;
+    }
+    .sort-icon {
+        opacity: 0.3;
+        margin-left: 5px;
+    }
+    .sort-icon.active {
+        opacity: 1;
+    }
+    .cost-breakdown {
+        font-size: 0.85rem;
+    }
+    .savings-card {
+        background: linear-gradient(135deg, #198754 0%, #20c997 100%);
+        color: white;
+    }
+    .savings-amount {
+        font-size: 2rem;
+        font-weight: bold;
+    }
+    .lot-size-btn.active {
+        background-color: #0d6efd;
+        color: white;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<h2 class="mb-4">Trading Costs Calculator</h2>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <form class="row g-3 align-items-end" id="costsForm">
+            <div class="col-md-2">
+                <label for="lotSize" class="form-label">Lot Size</label>
+                <select class="form-select" id="lotSize">
+                    <option value="0.01">0.01 (Micro)</option>
+                    <option value="0.1">0.1 (Mini)</option>
+                    <option value="0.5">0.5</option>
+                    <option value="1.0" selected>1.0 (Standard)</option>
+                    <option value="2.0">2.0</option>
+                    <option value="5.0">5.0</option>
+                    <option value="10.0">10.0</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label for="symbol" class="form-label">Symbol</label>
+                <select class="form-select" id="symbol">
+                    <option value="XAUUSD" selected>XAUUSD</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="startDate" class="form-label">Start Date</label>
+                <input type="date" class="form-control" id="startDate" required>
+            </div>
+            <div class="col-md-3">
+                <label for="endDate" class="form-label">End Date</label>
+                <input type="date" class="form-control" id="endDate" required>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">Calculate</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-7 mb-4">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Total Trading Cost Comparison</h5>
+                <button class="btn btn-sm btn-outline-success" onclick="exportToExcel()" id="exportBtn" disabled>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="me-1" viewBox="0 0 16 16">
+                        <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
+                        <path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/>
+                    </svg>
+                    Export Excel
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover" id="costsTable">
+                        <thead>
+                            <tr>
+                                <th class="sortable-header" onclick="sortCostsTable('broker')">
+                                    Broker
+                                    <span class="sort-icon" data-col="broker">↕</span>
+                                </th>
+                                <th class="sortable-header text-end" onclick="sortCostsTable('avg_spread_points')">
+                                    Avg Spread
+                                    <span class="sort-icon" data-col="avg_spread_points">↕</span>
+                                </th>
+                                <th class="sortable-header text-end" onclick="sortCostsTable('spread_cost')">
+                                    Spread Cost
+                                    <span class="sort-icon" data-col="spread_cost">↕</span>
+                                </th>
+                                <th class="sortable-header text-end" onclick="sortCostsTable('commission')">
+                                    Commission
+                                    <span class="sort-icon" data-col="commission">↕</span>
+                                </th>
+                                <th class="sortable-header text-end" onclick="sortCostsTable('total_cost')">
+                                    Total Cost
+                                    <span class="sort-icon active" data-col="total_cost">↑</span>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td colspan="5" class="text-center text-muted">Loading...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="mt-2 text-muted small" id="costInfo">
+                    <!-- Point value info will be shown here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-5 mb-4">
+        <div class="card savings-card h-100">
+            <div class="card-body d-flex flex-column justify-content-center">
+                <h5 class="card-title">Potential Savings</h5>
+                <div id="savingsContent">
+                    <p class="text-white-50">Calculate costs to see potential savings.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Cost Breakdown Chart</h5>
+            </div>
+            <div class="card-body">
+                <div id="stackedBarChart" class="chart-container"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Monthly Savings Estimator</h5>
+            </div>
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-md-4">
+                        <label for="tradesPerMonth" class="form-label">Trades per Month</label>
+                        <input type="number" class="form-control" id="tradesPerMonth" value="20" min="1" max="1000">
+                    </div>
+                    <div class="col-md-8">
+                        <div id="monthlySavings" class="mt-3 mt-md-0">
+                            <p class="text-muted mb-0">Enter your trading frequency to estimate monthly savings.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+<script>
+    let brokerMeta = {};
+    let costsData = [];
+    let savingsData = null;
+    let costsSort = { column: 'total_cost', direction: 'asc' };
+    let currentLotSize = 1.0;
+    let currentSymbol = 'XAUUSD';
+    let currencySymbol = 'A$';
+    let currencyCode = 'AUD';
+
+    function getBrokerLogo(brokerName) {
+        const meta = brokerMeta[brokerName];
+        if (meta && meta.logo_url) {
+            return `<img src="${meta.logo_url}" alt="${brokerName}" class="broker-logo" onerror="this.style.display='none'">`;
+        }
+        return '';
+    }
+
+    async function loadBrokerMeta() {
+        try {
+            const response = await fetch('/api/brokers');
+            const result = await response.json();
+            if (result.success) {
+                brokerMeta = result.data;
+            }
+        } catch (error) {
+            console.error('Error fetching broker metadata:', error);
+        }
+    }
+
+    function setDefaultDates() {
+        const today = new Date();
+        const weekAgo = new Date(today);
+        weekAgo.setDate(weekAgo.getDate() - 7);
+
+        document.getElementById('endDate').value = today.toISOString().split('T')[0];
+        document.getElementById('startDate').value = weekAgo.toISOString().split('T')[0];
+    }
+
+    function sortCostsTable(column) {
+        if (costsSort.column === column) {
+            costsSort.direction = costsSort.direction === 'asc' ? 'desc' : 'asc';
+        } else {
+            costsSort.column = column;
+            costsSort.direction = 'asc';
+        }
+
+        // Update sort icons
+        document.querySelectorAll('#costsTable .sort-icon').forEach(icon => {
+            icon.classList.remove('active');
+            icon.textContent = '↕';
+        });
+        const activeIcon = document.querySelector(`#costsTable .sort-icon[data-col="${column}"]`);
+        if (activeIcon) {
+            activeIcon.classList.add('active');
+            activeIcon.textContent = costsSort.direction === 'asc' ? '↑' : '↓';
+        }
+
+        renderCostsTable(costsData);
+    }
+
+    function renderCostsTable(costs) {
+        const tbody = document.querySelector('#costsTable tbody');
+
+        if (!costs || costs.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No data available.</td></tr>';
+            document.getElementById('exportBtn').disabled = true;
+            return;
+        }
+
+        // Store data globally
+        costsData = costs;
+        document.getElementById('exportBtn').disabled = false;
+
+        // Sort the data
+        const sorted = [...costs].sort((a, b) => {
+            let valA = a[costsSort.column];
+            let valB = b[costsSort.column];
+
+            if (typeof valA === 'string') {
+                valA = valA.toLowerCase();
+                valB = valB.toLowerCase();
+                return costsSort.direction === 'asc'
+                    ? valA.localeCompare(valB)
+                    : valB.localeCompare(valA);
+            }
+
+            return costsSort.direction === 'asc' ? valA - valB : valB - valA;
+        });
+
+        // Find lowest and highest total cost
+        const lowestCost = Math.min(...costs.map(c => c.total_cost));
+        const highestCost = Math.max(...costs.map(c => c.total_cost));
+
+        let html = '';
+        sorted.forEach(cost => {
+            const isLowest = cost.total_cost === lowestCost;
+            const isHighest = cost.total_cost === highestCost && costs.length > 1;
+
+            let rowClass = '';
+            if (isLowest) rowClass = 'table-success';
+            else if (isHighest) rowClass = 'table-danger';
+
+            html += `
+                <tr class="${rowClass}">
+                    <td>
+                        <div class="broker-name-wrapper">
+                            ${getBrokerLogo(cost.broker)}
+                            <strong>${cost.broker}</strong>
+                            ${isLowest ? '<span class="badge bg-success ms-2">Best</span>' : ''}
+                            ${isHighest ? '<span class="badge bg-danger ms-2">Highest</span>' : ''}
+                        </div>
+                    </td>
+                    <td class="text-end">${cost.avg_spread_points.toFixed(1)} pts</td>
+                    <td class="text-end">${currencySymbol}${cost.spread_cost.toFixed(2)}</td>
+                    <td class="text-end">${currencySymbol}${cost.commission.toFixed(2)}</td>
+                    <td class="text-end fw-bold">${currencySymbol}${cost.total_cost.toFixed(2)}</td>
+                </tr>
+            `;
+        });
+
+        tbody.innerHTML = html;
+    }
+
+    function renderSavings(savings) {
+        const container = document.getElementById('savingsContent');
+        savingsData = savings;
+
+        if (!savings) {
+            container.innerHTML = '<p class="text-white-50">Not enough data to calculate savings.</p>';
+            return;
+        }
+
+        container.innerHTML = `
+            <div class="savings-amount">${currencySymbol}${savings.savings_per_lot.toFixed(2)}</div>
+            <p class="mb-2">per lot saved by using <strong>${savings.best_broker}</strong></p>
+            <p class="mb-0 small text-white-50">
+                vs ${savings.worst_broker} (${currencySymbol}${savings.worst_cost.toFixed(2)}/lot)
+                <br>
+                That's <strong>${savings.savings_percent}%</strong> lower trading costs!
+            </p>
+        `;
+
+        updateMonthlySavings();
+    }
+
+    function updateMonthlySavings() {
+        const container = document.getElementById('monthlySavings');
+        const tradesPerMonth = parseInt(document.getElementById('tradesPerMonth').value) || 0;
+
+        if (!savingsData || tradesPerMonth <= 0) {
+            container.innerHTML = '<p class="text-muted mb-0">Enter your trading frequency to estimate monthly savings.</p>';
+            return;
+        }
+
+        const lotSize = parseFloat(document.getElementById('lotSize').value);
+        const monthlySavings = savingsData.savings_per_lot * tradesPerMonth;
+        const yearlySavings = monthlySavings * 12;
+
+        container.innerHTML = `
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card bg-light">
+                        <div class="card-body text-center py-3">
+                            <h4 class="text-success mb-1">${currencySymbol}${monthlySavings.toFixed(2)}</h4>
+                            <small class="text-muted">Monthly Savings</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card bg-light">
+                        <div class="card-body text-center py-3">
+                            <h4 class="text-success mb-1">${currencySymbol}${yearlySavings.toFixed(2)}</h4>
+                            <small class="text-muted">Yearly Savings</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <p class="text-muted small mt-2 mb-0">
+                Based on ${tradesPerMonth} trades/month × ${lotSize} lot × ${currencySymbol}${savingsData.savings_per_lot.toFixed(2)} savings per lot
+            </p>
+        `;
+    }
+
+    function renderStackedBarChart(costs) {
+        if (!costs || costs.length === 0) {
+            document.getElementById('stackedBarChart').innerHTML =
+                '<p class="text-center text-muted py-5">No data available.</p>';
+            return;
+        }
+
+        // Sort by total cost for chart
+        const sorted = [...costs].sort((a, b) => a.total_cost - b.total_cost);
+
+        const brokers = sorted.map(c => c.broker);
+
+        const spreadTrace = {
+            x: brokers,
+            y: sorted.map(c => c.spread_cost),
+            name: 'Spread Cost',
+            type: 'bar',
+            marker: { color: '#0d6efd' }
+        };
+
+        const commissionTrace = {
+            x: brokers,
+            y: sorted.map(c => c.commission),
+            name: 'Commission',
+            type: 'bar',
+            marker: { color: '#ffc107' }
+        };
+
+        const layout = {
+            barmode: 'stack',
+            yaxis: {
+                title: `Cost (${currencyCode})`,
+                tickprefix: currencySymbol
+            },
+            legend: {
+                orientation: 'h',
+                y: -0.15
+            },
+            margin: { t: 20, r: 20 }
+        };
+
+        Plotly.newPlot('stackedBarChart', [spreadTrace, commissionTrace], layout, { responsive: true });
+    }
+
+    function exportToExcel() {
+        if (!costsData || costsData.length === 0) {
+            alert('No data to export');
+            return;
+        }
+
+        const startDate = document.getElementById('startDate').value;
+        const endDate = document.getElementById('endDate').value;
+        const symbol = document.getElementById('symbol').value;
+        const lotSize = document.getElementById('lotSize').value;
+
+        // Prepare data for export
+        const exportData = costsData.map(cost => ({
+            'Broker': cost.broker,
+            'Avg Spread (pts)': cost.avg_spread_points.toFixed(2),
+            [`Spread Cost (${currencyCode})`]: cost.spread_cost.toFixed(2),
+            [`Commission (${currencyCode})`]: cost.commission.toFixed(2),
+            [`Total Cost (${currencyCode})`]: cost.total_cost.toFixed(2),
+            [`Commission/Lot (${currencyCode})`]: cost.commission_per_lot.toFixed(2)
+        }));
+
+        // Create workbook and worksheet
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.json_to_sheet(exportData);
+
+        // Set column widths
+        ws['!cols'] = [
+            { wch: 25 },  // Broker
+            { wch: 15 },  // Avg Spread
+            { wch: 15 },  // Spread Cost
+            { wch: 15 },  // Commission
+            { wch: 15 },  // Total Cost
+            { wch: 18 }   // Commission/Lot
+        ];
+
+        // Add worksheet to workbook
+        XLSX.utils.book_append_sheet(wb, ws, 'Trading Costs');
+
+        // Generate filename
+        const filename = `trading_costs_${symbol}_${lotSize}lot_${startDate}_to_${endDate}.xlsx`;
+
+        // Download the file
+        XLSX.writeFile(wb, filename);
+    }
+
+    async function loadTradingCosts() {
+        const startDate = document.getElementById('startDate').value;
+        const endDate = document.getElementById('endDate').value;
+        const symbol = document.getElementById('symbol').value;
+        const lotSize = document.getElementById('lotSize').value;
+
+        currentLotSize = parseFloat(lotSize);
+        currentSymbol = symbol;
+
+        try {
+            const response = await fetch(
+                `/api/trading-costs?start=${startDate}&end=${endDate}&symbol=${symbol}&lot_size=${lotSize}`
+            );
+            const result = await response.json();
+
+            if (result.success) {
+                // Update currency from API response
+                if (result.currency) {
+                    currencySymbol = result.currency.symbol;
+                    currencyCode = result.currency.code;
+                }
+
+                renderCostsTable(result.data);
+                renderSavings(result.savings);
+                renderStackedBarChart(result.data);
+
+                // Update cost info
+                document.getElementById('costInfo').innerHTML = `
+                    <strong>Note:</strong> Point value for ${symbol} = ${currencySymbol}${result.point_value.toFixed(2)} per point per standard lot.
+                    All costs in ${currencyCode}. Calculated for ${lotSize} lot(s).
+                `;
+            } else {
+                console.error('Error:', result.error);
+            }
+        } catch (error) {
+            console.error('Error fetching trading costs:', error);
+        }
+    }
+
+    document.getElementById('costsForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        loadTradingCosts();
+    });
+
+    document.getElementById('tradesPerMonth').addEventListener('input', updateMonthlySavings);
+
+    // Initialize
+    async function init() {
+        await loadBrokerMeta();
+        setDefaultDates();
+        loadTradingCosts();
+    }
+
+    init();
+</script>
+{% endblock %}
