@@ -1,10 +1,6 @@
 # Sensitive configuration files
 spread_monitor/config.json
 
-# Data files (collected spreads)
-spread_monitor/data/
-*.csv
-
 # Log files
 spread_monitor/logs/
 *.log

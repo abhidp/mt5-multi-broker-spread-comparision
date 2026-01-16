@@ -1,0 +1,257 @@
+{% extends "base.html" %} {% block title %}History - Spread Monitor{% endblock
+%} {% block content %}
+<h2 class="mb-4">Spread History</h2>
+
+<div class="card mb-4">
+  <div class="card-body">
+    <form class="row g-3 align-items-end" id="dateForm">
+      <div class="col-md-3">
+        <label for="startDate" class="form-label">Start Date</label>
+        <input type="date" class="form-control" id="startDate" required />
+      </div>
+      <div class="col-md-3">
+        <label for="endDate" class="form-label">End Date</label>
+        <input type="date" class="form-control" id="endDate" required />
+      </div>
+      <div class="col-md-3">
+        <label for="symbol" class="form-label">Symbol</label>
+        <select class="form-select" id="symbol">
+          <option value="XAUUSD" selected>XAUUSD</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <button type="submit" class="btn btn-primary w-100">Load Data</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <h5 class="mb-0">Spread Over Time</h5>
+    <div class="btn-group btn-group-sm" role="group">
+      <button
+        type="button"
+        class="btn btn-outline-secondary active"
+        onclick="setYAxis('points')"
+      >
+        Points
+      </button>
+      <button
+        type="button"
+        class="btn btn-outline-secondary"
+        onclick="setYAxis('spread')"
+      >
+        Price
+      </button>
+    </div>
+  </div>
+  <div class="card-body">
+    <div id="historyChart" class="chart-container"></div>
+  </div>
+</div>
+
+<div class="card mt-4">
+  <div class="card-header">
+    <h5 class="mb-0">Data Summary</h5>
+  </div>
+  <div class="card-body">
+    <div id="dataSummary">
+      <p class="text-muted">Load data to see summary statistics.</p>
+    </div>
+  </div>
+</div>
+{% endblock %} {% block extra_js %}
+<script>
+  let chartData = null
+  let currentYAxis = 'points'
+  let collectionInterval = 5 // Default, will be fetched from config
+
+  async function loadConfig() {
+    try {
+      const response = await fetch('/api/config')
+      const result = await response.json()
+      if (result.success) {
+        collectionInterval = result.data.collection_interval_minutes
+      }
+    } catch (error) {
+      console.error('Error fetching config:', error)
+    }
+  }
+
+  // Set default dates (today and 7 days ago)
+  function setDefaultDates() {
+    const today = new Date()
+    const weekAgo = new Date(today)
+    weekAgo.setDate(weekAgo.getDate() - 7)
+
+    document.getElementById('endDate').value = today.toISOString().split('T')[0]
+    document.getElementById('startDate').value = weekAgo
+      .toISOString()
+      .split('T')[0]
+  }
+
+  function setYAxis(type) {
+    currentYAxis = type
+    document.querySelectorAll('.btn-group .btn').forEach((btn) => {
+      btn.classList.remove('active')
+    })
+    event.target.classList.add('active')
+    if (chartData) {
+      renderChart(chartData)
+    }
+  }
+
+  function renderChart(data) {
+    if (!data || data.length === 0) {
+      document.getElementById('historyChart').innerHTML =
+        '<p class="text-center text-muted py-5">No data available for the selected date range.</p>'
+      return
+    }
+
+    // Group data by broker
+    const brokers = [...new Set(data.map((d) => d.broker))]
+
+    const traces = brokers.map((broker) => {
+      const brokerData = data.filter((d) => d.broker === broker)
+      return {
+        x: brokerData.map((d) => d.timestamp),
+        y: brokerData.map((d) =>
+          currentYAxis === 'points' ? d.spread_points : d.spread
+        ),
+        type: 'scatter',
+        mode: 'lines+markers',
+        name: broker,
+        line: { color: getBrokerColor(broker), width: 2 },
+        marker: { size: 4 }
+      }
+    })
+
+    const symbol = document.getElementById('symbol').value
+    const interval = collectionInterval + 'm'
+
+    const layout = {
+      xaxis: {
+        title: 'Time',
+        type: 'date'
+      },
+      yaxis: {
+        title: currentYAxis === 'points' ? 'Spread (Points)' : 'Spread (Price)',
+        rangemode: 'tozero',
+        fixedrange: true
+      },
+      legend: {
+        orientation: 'h',
+        y: -0.2
+      },
+      margin: { t: 40, r: 20 },
+      hovermode: 'x unified',
+      dragmode: 'pan',
+      annotations: [
+        {
+          text: `${symbol} · ${interval}`,
+          xref: 'paper',
+          yref: 'paper',
+          x: 0.5,
+          y: 0.98,
+          showarrow: false,
+          font: {
+            size: 35,
+            color: 'rgba(150, 150, 150, 0.2)',
+            family: 'Arial Black, sans-serif'
+          },
+          xanchor: 'center',
+          yanchor: 'top'
+        }
+      ]
+    }
+
+    const config = {
+      responsive: true,
+      displayModeBar: true,
+      modeBarButtonsToRemove: ['lasso2d', 'select2d'],
+      scrollZoom: true
+    }
+
+    Plotly.newPlot('historyChart', traces, layout, config)
+  }
+
+  function renderSummary(data) {
+    if (!data || data.length === 0) {
+      document.getElementById('dataSummary').innerHTML =
+        '<p class="text-muted">No data available.</p>'
+      return
+    }
+
+    const brokers = [...new Set(data.map((d) => d.broker))]
+    let html = '<div class="row">'
+
+    brokers.forEach((broker) => {
+      const brokerData = data.filter((d) => d.broker === broker)
+      const spreads = brokerData.map((d) => d.spread_points)
+      const avg = (spreads.reduce((a, b) => a + b, 0) / spreads.length).toFixed(
+        1
+      )
+      const min = Math.min(...spreads)
+      const max = Math.max(...spreads)
+
+      html += `
+                <div class="col-md-4 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h6>${broker}</h6>
+                            <p class="mb-0 small">
+                                <strong>Records:</strong> ${brokerData.length} |
+                                <strong>Avg:</strong> ${avg} |
+                                <strong>Min:</strong> ${min} |
+                                <strong>Max:</strong> ${max}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            `
+    })
+
+    html += '</div>'
+    document.getElementById('dataSummary').innerHTML = html
+  }
+
+  async function loadHistory() {
+    const startDate = document.getElementById('startDate').value
+    const endDate = document.getElementById('endDate').value
+    const symbol = document.getElementById('symbol').value
+
+    try {
+      const response = await fetch(
+        `/api/history?start=${startDate}&end=${endDate}&symbol=${symbol}`
+      )
+      const result = await response.json()
+
+      if (result.success) {
+        chartData = result.data
+        renderChart(chartData)
+        renderSummary(chartData)
+      } else {
+        console.error('Error:', result.error)
+      }
+    } catch (error) {
+      console.error('Error fetching history:', error)
+    }
+  }
+
+  // Event listeners
+  document.getElementById('dateForm').addEventListener('submit', function (e) {
+    e.preventDefault()
+    loadHistory()
+  })
+
+  // Initialize
+  async function init() {
+    await loadConfig()
+    setDefaultDates()
+    loadHistory()
+  }
+
+  init()
+</script>
+{% endblock %}

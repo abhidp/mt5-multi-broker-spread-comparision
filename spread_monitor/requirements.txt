@@ -1,13 +1,20 @@
-# MT5 Spread Monitor - Phase 1 Dependencies
+# MT5 Spread Monitor Dependencies
 
 # MT5 Connection
 MetaTrader5>=5.0.45
 
 # Data Handling
 pandas>=2.0.0
+numpy>=1.24.0
 
 # Scheduling
 APScheduler>=3.10.0
 
 # Logging
 python-json-logger>=2.0.0
+
+# Web Framework (Phase 2)
+Flask>=3.0.0
+
+# Charts (Phase 2)
+plotly>=5.18.0
