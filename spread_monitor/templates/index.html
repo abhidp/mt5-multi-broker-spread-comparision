@@ -1,0 +1,466 @@
+{% extends "base.html" %}
+
+{% block title %}Live Spreads - Spread Monitor{% endblock %}
+
+{% block extra_css %}
+<style>
+    .view-toggle .btn.active {
+        background-color: #0d6efd;
+        color: white;
+    }
+    .sortable-header {
+        cursor: pointer;
+        user-select: none;
+    }
+    .sortable-header:hover {
+        background-color: #e9ecef;
+    }
+    .sort-icon {
+        opacity: 0.3;
+        margin-left: 5px;
+    }
+    .sort-icon.active {
+        opacity: 1;
+    }
+    .table-spread-lowest {
+        background-color: rgba(25, 135, 84, 0.15) !important;
+    }
+    .table-spread-highest {
+        background-color: rgba(220, 53, 69, 0.15) !important;
+    }
+    .spread-badge {
+        font-size: 0.75rem;
+        padding: 0.25em 0.5em;
+    }
+    .broker-logo {
+        width: 24px;
+        height: 24px;
+        object-fit: contain;
+        margin-right: 8px;
+        border-radius: 4px;
+    }
+    .broker-logo-lg {
+        width: 32px;
+        height: 32px;
+    }
+    .broker-name-wrapper {
+        display: flex;
+        align-items: center;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>Live Spreads</h2>
+    <div class="d-flex align-items-center gap-2">
+        <span class="last-updated" id="lastUpdated">Last updated: --</span>
+        <button class="btn btn-sm btn-outline-primary" id="refreshBtn" onclick="refreshData()">
+            <span id="refreshText">Refresh</span>
+            <span id="refreshSpinner" class="spinner-border spinner-border-sm d-none" role="status"></span>
+        </button>
+    </div>
+</div>
+
+<!-- Toolbar -->
+<div class="card mb-4">
+    <div class="card-body py-2">
+        <div class="row align-items-center">
+            <div class="col-auto" id="sortDropdownContainer">
+                <div class="d-flex align-items-center gap-2">
+                    <label class="form-label mb-0 small fw-bold">Sort:</label>
+                    <select class="form-select form-select-sm" id="sortSelect" style="width: auto;" onchange="applySort()">
+                        <option value="spread-asc">Spread: Low to High</option>
+                        <option value="spread-desc">Spread: High to Low</option>
+                        <option value="name-asc">Name: A to Z</option>
+                        <option value="name-desc">Name: Z to A</option>
+                    </select>
+                </div>
+            </div>
+            <div class="col-auto d-none" id="tableViewHint">
+                <span class="text-muted small">Click column headers to sort</span>
+            </div>
+            <div class="col-auto ms-auto">
+                <div class="btn-group btn-group-sm view-toggle" role="group">
+                    <button type="button" class="btn btn-outline-secondary active" id="btnTileView" onclick="setView('tile')" title="Tile View">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h3A1.5 1.5 0 0 1 7 2.5v3A1.5 1.5 0 0 1 5.5 7h-3A1.5 1.5 0 0 1 1 5.5v-3zm8 0A1.5 1.5 0 0 1 10.5 1h3A1.5 1.5 0 0 1 15 2.5v3A1.5 1.5 0 0 1 13.5 7h-3A1.5 1.5 0 0 1 9 5.5v-3zm-8 8A1.5 1.5 0 0 1 2.5 9h3A1.5 1.5 0 0 1 7 10.5v3A1.5 1.5 0 0 1 5.5 15h-3A1.5 1.5 0 0 1 1 13.5v-3zm8 0A1.5 1.5 0 0 1 10.5 9h3a1.5 1.5 0 0 1 1.5 1.5v3a1.5 1.5 0 0 1-1.5 1.5h-3A1.5 1.5 0 0 1 9 13.5v-3z"/>
+                        </svg>
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" id="btnTableView" onclick="setView('table')" title="Table View">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M0 2a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V2zm15 2h-4v3h4V4zm0 4h-4v3h4V8zm0 4h-4v3h3a1 1 0 0 0 1-1v-2zm-5 3v-3H6v3h4zm-5 0v-3H1v2a1 1 0 0 0 1 1h3zm-4-4h4V8H1v3zm0-4h4V4H1v3zm5-3v3h4V4H6zm4 4H6v3h4V8z"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tile View -->
+<div class="row" id="tileView">
+    <div class="col-12 text-center py-5">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <p class="mt-2 text-muted">Loading spread data...</p>
+    </div>
+</div>
+
+<!-- Table View -->
+<div class="card d-none" id="tableView">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th class="sortable-header" onclick="sortTable('broker')">
+                        Broker/Account
+                        <span class="sort-icon" data-col="broker">↕</span>
+                    </th>
+                    <th class="sortable-header" onclick="sortTable('symbol')">
+                        Symbol
+                        <span class="sort-icon" data-col="symbol">↕</span>
+                    </th>
+                    <th class="sortable-header text-end" onclick="sortTable('spread_points')">
+                        Spread (pts)
+                        <span class="sort-icon" data-col="spread_points">↕</span>
+                    </th>
+                    <th class="sortable-header text-end" onclick="sortTable('spread')">
+                        Spread (price)
+                        <span class="sort-icon" data-col="spread">↕</span>
+                    </th>
+                    <th class="text-end">Bid</th>
+                    <th class="text-end">Ask</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody">
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Session Info -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Current Session</h5>
+            </div>
+            <div class="card-body">
+                <p class="mb-0">
+                    <strong>Session:</strong> <span id="currentSession">--</span> |
+                    <strong>UTC Time:</strong> <span id="utcTime">--</span>
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let liveData = [];
+    let brokerMeta = {};
+    let currentView = localStorage.getItem('spreadViewMode') || 'tile';
+    let currentSort = localStorage.getItem('spreadSortMode') || 'spread-asc';
+    let tableSort = { column: 'spread_points', direction: 'asc' };
+
+    function getBrokerLogo(brokerName, size = '') {
+        const meta = brokerMeta[brokerName];
+        if (meta && meta.logo_url) {
+            const sizeClass = size === 'lg' ? 'broker-logo-lg' : '';
+            return `<img src="${meta.logo_url}" alt="${brokerName}" class="broker-logo ${sizeClass}" onerror="this.style.display='none'">`;
+        }
+        return '';
+    }
+
+    async function loadBrokerMeta() {
+        try {
+            const response = await fetch('/api/brokers');
+            const result = await response.json();
+            if (result.success) {
+                brokerMeta = result.data;
+            }
+        } catch (error) {
+            console.error('Error fetching broker metadata:', error);
+        }
+    }
+
+    function formatTimestamp(timestamp) {
+        if (!timestamp) return '--';
+        const date = new Date(timestamp);
+        return date.toLocaleString();
+    }
+
+    function getSpreadClass(spread, allSpreads) {
+        const min = Math.min(...allSpreads);
+        const max = Math.max(...allSpreads);
+        if (spread === min) return 'spread-lowest';
+        if (spread === max) return 'spread-highest';
+        return 'spread-mid';
+    }
+
+    function sortData(data, sortMode) {
+        const sorted = [...data];
+        switch (sortMode) {
+            case 'spread-asc':
+                sorted.sort((a, b) => a.spread_points - b.spread_points);
+                break;
+            case 'spread-desc':
+                sorted.sort((a, b) => b.spread_points - a.spread_points);
+                break;
+            case 'name-asc':
+                sorted.sort((a, b) => a.broker.localeCompare(b.broker));
+                break;
+            case 'name-desc':
+                sorted.sort((a, b) => b.broker.localeCompare(a.broker));
+                break;
+        }
+        return sorted;
+    }
+
+    function applySort() {
+        currentSort = document.getElementById('sortSelect').value;
+        localStorage.setItem('spreadSortMode', currentSort);
+        renderData();
+    }
+
+    function setView(view) {
+        currentView = view;
+        localStorage.setItem('spreadViewMode', view);
+
+        document.getElementById('btnTileView').classList.toggle('active', view === 'tile');
+        document.getElementById('btnTableView').classList.toggle('active', view === 'table');
+        document.getElementById('tileView').classList.toggle('d-none', view !== 'tile');
+        document.getElementById('tableView').classList.toggle('d-none', view !== 'table');
+
+        // Show sort dropdown only in tile view, show hint in table view
+        document.getElementById('sortDropdownContainer').classList.toggle('d-none', view !== 'tile');
+        document.getElementById('tableViewHint').classList.toggle('d-none', view !== 'table');
+
+        renderData();
+    }
+
+    function sortTable(column) {
+        if (tableSort.column === column) {
+            tableSort.direction = tableSort.direction === 'asc' ? 'desc' : 'asc';
+        } else {
+            tableSort.column = column;
+            tableSort.direction = 'asc';
+        }
+
+        // Update sort icons
+        document.querySelectorAll('.sort-icon').forEach(icon => {
+            icon.classList.remove('active');
+            icon.textContent = '↕';
+        });
+        const activeIcon = document.querySelector(`.sort-icon[data-col="${column}"]`);
+        if (activeIcon) {
+            activeIcon.classList.add('active');
+            activeIcon.textContent = tableSort.direction === 'asc' ? '↑' : '↓';
+        }
+
+        renderTable();
+    }
+
+    function renderTiles(data) {
+        const container = document.getElementById('tileView');
+
+        if (!data || data.length === 0) {
+            container.innerHTML = `
+                <div class="col-12 text-center py-5">
+                    <p class="text-muted">No spread data available. Make sure the collector is running.</p>
+                </div>
+            `;
+            return;
+        }
+
+        const sortedData = sortData(data, currentSort);
+        const allSpreads = data.map(d => d.spread_points);
+        const minSpread = Math.min(...allSpreads);
+        const maxSpread = Math.max(...allSpreads);
+
+        let html = '';
+        sortedData.forEach((item, index) => {
+            const spreadClass = getSpreadClass(item.spread_points, allSpreads);
+            const isLowest = item.spread_points === minSpread;
+            const isHighest = item.spread_points === maxSpread;
+
+            html += `
+                <div class="col-md-4 mb-3">
+                    <div class="card spread-card ${spreadClass}">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div class="broker-name-wrapper">
+                                    ${getBrokerLogo(item.broker, 'lg')}
+                                    <h5 class="card-title mb-0">${item.broker}</h5>
+                                </div>
+                                <div>
+                                    ${isLowest ? '<span class="badge bg-success spread-badge">Lowest</span>' : ''}
+                                    ${isHighest && !isLowest ? '<span class="badge bg-danger spread-badge">Highest</span>' : ''}
+                                </div>
+                            </div>
+                            <p class="card-text text-muted mb-2 mt-1">${item.symbol}</p>
+                            <div class="spread-value">${item.spread.toFixed(2)}</div>
+                            <div class="spread-points">${item.spread_points} points</div>
+                            <hr>
+                            <div class="row small">
+                                <div class="col-6">
+                                    <span class="text-muted">Bid:</span> ${item.bid.toFixed(2)}
+                                </div>
+                                <div class="col-6">
+                                    <span class="text-muted">Ask:</span> ${item.ask.toFixed(2)}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+
+        container.innerHTML = html;
+    }
+
+    function renderTable() {
+        const tbody = document.getElementById('tableBody');
+
+        if (!liveData || liveData.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="text-center text-muted py-4">
+                        No spread data available. Make sure the collector is running.
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        // Sort table data
+        const sorted = [...liveData].sort((a, b) => {
+            let valA = a[tableSort.column];
+            let valB = b[tableSort.column];
+
+            if (typeof valA === 'string') {
+                valA = valA.toLowerCase();
+                valB = valB.toLowerCase();
+                return tableSort.direction === 'asc'
+                    ? valA.localeCompare(valB)
+                    : valB.localeCompare(valA);
+            }
+
+            return tableSort.direction === 'asc' ? valA - valB : valB - valA;
+        });
+
+        const allSpreads = liveData.map(d => d.spread_points);
+        const minSpread = Math.min(...allSpreads);
+        const maxSpread = Math.max(...allSpreads);
+
+        let html = '';
+        sorted.forEach(item => {
+            const isLowest = item.spread_points === minSpread;
+            const isHighest = item.spread_points === maxSpread;
+            let rowClass = '';
+            if (isLowest) rowClass = 'table-spread-lowest';
+            else if (isHighest) rowClass = 'table-spread-highest';
+
+            html += `
+                <tr class="${rowClass}">
+                    <td>
+                        <div class="broker-name-wrapper">
+                            ${getBrokerLogo(item.broker)}
+                            <strong>${item.broker}</strong>
+                            ${isLowest ? '<span class="badge bg-success ms-2 spread-badge">Lowest</span>' : ''}
+                            ${isHighest && !isLowest ? '<span class="badge bg-danger ms-2 spread-badge">Highest</span>' : ''}
+                        </div>
+                    </td>
+                    <td>${item.symbol}</td>
+                    <td class="text-end fw-bold">${item.spread_points}</td>
+                    <td class="text-end">${item.spread.toFixed(2)}</td>
+                    <td class="text-end">${item.bid.toFixed(2)}</td>
+                    <td class="text-end">${item.ask.toFixed(2)}</td>
+                </tr>
+            `;
+        });
+
+        tbody.innerHTML = html;
+    }
+
+    function renderData() {
+        if (currentView === 'tile') {
+            renderTiles(liveData);
+        } else {
+            renderTable();
+        }
+    }
+
+    function updateSessionInfo() {
+        const now = new Date();
+        const utcHour = now.getUTCHours();
+
+        let session = 'Closed';
+        if (utcHour >= 12 && utcHour < 16) {
+            session = 'Overlap (London/NY)';
+        } else if (utcHour >= 7 && utcHour < 16) {
+            session = 'London';
+        } else if (utcHour >= 12 && utcHour < 21) {
+            session = 'New York';
+        } else if (utcHour >= 21 || utcHour < 6) {
+            session = 'Sydney';
+        }
+
+        document.getElementById('currentSession').textContent = session;
+        document.getElementById('utcTime').textContent = now.toUTCString();
+    }
+
+    async function refreshData() {
+        const btn = document.getElementById('refreshBtn');
+        const text = document.getElementById('refreshText');
+        const spinner = document.getElementById('refreshSpinner');
+
+        // Show loading state
+        btn.disabled = true;
+        text.textContent = 'Refreshing...';
+        spinner.classList.remove('d-none');
+
+        try {
+            const response = await fetch('/api/live');
+            const result = await response.json();
+
+            if (result.success) {
+                liveData = result.data;
+                renderData();
+                document.getElementById('lastUpdated').textContent =
+                    'Last updated: ' + formatTimestamp(result.timestamp);
+            } else {
+                console.error('Error fetching data:', result.error);
+            }
+        } catch (error) {
+            console.error('Error fetching live data:', error);
+        }
+
+        // Reset button state
+        btn.disabled = false;
+        text.textContent = 'Refresh';
+        spinner.classList.add('d-none');
+
+        updateSessionInfo();
+    }
+
+    // Initialize
+    async function init() {
+        await loadBrokerMeta();
+        document.getElementById('sortSelect').value = currentSort;
+        setView(currentView);
+        await refreshData();
+    }
+
+    init();
+
+    // Auto-refresh every 60 seconds
+    setInterval(refreshData, 60000);
+
+    // Update session info every second
+    setInterval(updateSessionInfo, 1000);
+</script>
+{% endblock %}

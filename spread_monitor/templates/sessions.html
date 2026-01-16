@@ -1,0 +1,362 @@
+{% extends "base.html" %}
+
+{% block title %}Session Analysis - Spread Monitor{% endblock %}
+
+{% block extra_css %}
+<style>
+    .broker-logo {
+        width: 24px;
+        height: 24px;
+        object-fit: contain;
+        margin-right: 8px;
+        border-radius: 4px;
+    }
+    .broker-name-wrapper {
+        display: flex;
+        align-items: center;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<h2 class="mb-4">Session Analysis</h2>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <form class="row g-3 align-items-end" id="sessionForm">
+            <div class="col-md-3">
+                <label for="startDate" class="form-label">Start Date</label>
+                <input type="date" class="form-control" id="startDate" required>
+            </div>
+            <div class="col-md-3">
+                <label for="endDate" class="form-label">End Date</label>
+                <input type="date" class="form-control" id="endDate" required>
+            </div>
+            <div class="col-md-3">
+                <label for="symbol" class="form-label">Symbol</label>
+                <select class="form-select" id="symbol">
+                    <option value="XAUUSD" selected>XAUUSD</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <button type="submit" class="btn btn-primary w-100">Analyze</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8 mb-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="mb-0">Average Spread Heatmap (Broker vs Session)</h5>
+            </div>
+            <div class="card-body">
+                <div id="heatmap" style="min-height: 400px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="mb-0">Best Broker by Session</h5>
+            </div>
+            <div class="card-body">
+                <div id="recommendations">
+                    <p class="text-muted">Loading recommendations...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Session Comparison Chart</h5>
+            </div>
+            <div class="card-body">
+                <div id="barChart" class="chart-container"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Detailed Session Statistics</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover" id="sessionTable">
+                        <thead>
+                            <tr>
+                                <th>Session</th>
+                                <th>Broker</th>
+                                <th>Avg Spread</th>
+                                <th>Min</th>
+                                <th>Max</th>
+                                <th>Sample Count</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td colspan="6" class="text-center text-muted">Loading...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let brokerMeta = {};
+    const sessionOrder = ['Sydney', 'London', 'Overlap', 'NewYork'];
+    const sessionColors = {
+        'Sydney': '#6f42c1',
+        'London': '#0d6efd',
+        'Overlap': '#198754',
+        'NewYork': '#dc3545'
+    };
+
+    function getBrokerLogo(brokerName) {
+        const meta = brokerMeta[brokerName];
+        if (meta && meta.logo_url) {
+            return `<img src="${meta.logo_url}" alt="${brokerName}" class="broker-logo" onerror="this.style.display='none'">`;
+        }
+        return '';
+    }
+
+    async function loadBrokerMeta() {
+        try {
+            const response = await fetch('/api/brokers');
+            const result = await response.json();
+            if (result.success) {
+                brokerMeta = result.data;
+            }
+        } catch (error) {
+            console.error('Error fetching broker metadata:', error);
+        }
+    }
+
+    function setDefaultDates() {
+        const today = new Date();
+        const weekAgo = new Date(today);
+        weekAgo.setDate(weekAgo.getDate() - 7);
+
+        document.getElementById('endDate').value = today.toISOString().split('T')[0];
+        document.getElementById('startDate').value = weekAgo.toISOString().split('T')[0];
+    }
+
+    function renderHeatmap(data) {
+        if (!data || data.length === 0) {
+            document.getElementById('heatmap').innerHTML =
+                '<p class="text-center text-muted py-5">No data available.</p>';
+            return;
+        }
+
+        const brokers = [...new Set(data.map(d => d.broker))];
+        const sessions = sessionOrder.filter(s => data.some(d => d.session === s));
+
+        // Create z-values matrix
+        const zValues = brokers.map(broker => {
+            return sessions.map(session => {
+                const match = data.find(d => d.broker === broker && d.session === session);
+                return match ? match.avg : null;
+            });
+        });
+
+        // Create text annotations
+        const textValues = brokers.map(broker => {
+            return sessions.map(session => {
+                const match = data.find(d => d.broker === broker && d.session === session);
+                return match ? match.avg.toFixed(1) : '';
+            });
+        });
+
+        const trace = {
+            z: zValues,
+            x: sessions,
+            y: brokers,
+            type: 'heatmap',
+            colorscale: [
+                [0, '#198754'],
+                [0.5, '#ffc107'],
+                [1, '#dc3545']
+            ],
+            text: textValues,
+            texttemplate: '%{text}',
+            hovertemplate: 'Broker: %{y}<br>Session: %{x}<br>Avg Spread: %{z:.2f} pts<extra></extra>'
+        };
+
+        const layout = {
+            margin: { t: 20, r: 20 },
+            xaxis: { title: 'Trading Session' },
+            yaxis: { title: 'Broker' }
+        };
+
+        Plotly.newPlot('heatmap', [trace], layout, { responsive: true });
+    }
+
+    function renderBarChart(data) {
+        if (!data || data.length === 0) {
+            document.getElementById('barChart').innerHTML =
+                '<p class="text-center text-muted py-5">No data available.</p>';
+            return;
+        }
+
+        const brokers = [...new Set(data.map(d => d.broker))];
+        const sessions = sessionOrder.filter(s => data.some(d => d.session === s));
+
+        const traces = brokers.map((broker) => {
+            return {
+                x: sessions,
+                y: sessions.map(session => {
+                    const match = data.find(d => d.broker === broker && d.session === session);
+                    return match ? match.avg : 0;
+                }),
+                type: 'bar',
+                name: broker,
+                marker: { color: getBrokerColor(broker) }
+            };
+        });
+
+        const layout = {
+            barmode: 'group',
+            xaxis: { title: 'Trading Session' },
+            yaxis: { title: 'Average Spread (Points)' },
+            legend: { orientation: 'h', y: -0.2 },
+            margin: { t: 20, r: 20 }
+        };
+
+        Plotly.newPlot('barChart', traces, layout, { responsive: true });
+    }
+
+    function renderRecommendations(data) {
+        const container = document.getElementById('recommendations');
+
+        if (!data || data.length === 0) {
+            container.innerHTML = '<p class="text-muted">No data available.</p>';
+            return;
+        }
+
+        const sessions = sessionOrder.filter(s => data.some(d => d.session === s));
+
+        let html = '<ul class="list-group list-group-flush">';
+
+        sessions.forEach(session => {
+            const sessionData = data.filter(d => d.session === session);
+            if (sessionData.length === 0) return;
+
+            const best = sessionData.reduce((a, b) => a.avg < b.avg ? a : b);
+
+            html += `
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong style="color: ${sessionColors[session]}">${session}</strong>
+                        <br>
+                        <small class="text-muted d-flex align-items-center mt-1">
+                            Best: ${getBrokerLogo(best.broker)}${best.broker}
+                        </small>
+                    </div>
+                    <span class="badge bg-primary rounded-pill">${best.avg.toFixed(1)} pts</span>
+                </li>
+            `;
+        });
+
+        html += '</ul>';
+        container.innerHTML = html;
+    }
+
+    function renderTable(data) {
+        const tbody = document.querySelector('#sessionTable tbody');
+
+        if (!data || data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No data available.</td></tr>';
+            return;
+        }
+
+        // Sort by session order, then by average spread
+        const sortedData = [...data].sort((a, b) => {
+            const sessionDiff = sessionOrder.indexOf(a.session) - sessionOrder.indexOf(b.session);
+            if (sessionDiff !== 0) return sessionDiff;
+            return a.avg - b.avg;
+        });
+
+        let html = '';
+        let currentSession = '';
+
+        sortedData.forEach(row => {
+            const isNewSession = row.session !== currentSession;
+            const isLowest = data
+                .filter(d => d.session === row.session)
+                .every(d => d.avg >= row.avg);
+
+            currentSession = row.session;
+
+            html += `
+                <tr class="${isLowest ? 'table-success' : ''}">
+                    <td>${isNewSession ? `<strong>${row.session}</strong>` : ''}</td>
+                    <td>
+                        <div class="broker-name-wrapper">
+                            ${getBrokerLogo(row.broker)}
+                            ${row.broker}
+                            ${isLowest ? '<span class="badge bg-success ms-1">Best</span>' : ''}
+                        </div>
+                    </td>
+                    <td>${row.avg.toFixed(2)}</td>
+                    <td>${row.min}</td>
+                    <td>${row.max}</td>
+                    <td>${row.count}</td>
+                </tr>
+            `;
+        });
+
+        tbody.innerHTML = html;
+    }
+
+    async function loadSessionData() {
+        const startDate = document.getElementById('startDate').value;
+        const endDate = document.getElementById('endDate').value;
+        const symbol = document.getElementById('symbol').value;
+
+        try {
+            const response = await fetch(`/api/sessions?start=${startDate}&end=${endDate}&symbol=${symbol}`);
+            const result = await response.json();
+
+            if (result.success) {
+                renderHeatmap(result.data);
+                renderBarChart(result.data);
+                renderRecommendations(result.data);
+                renderTable(result.data);
+            } else {
+                console.error('Error:', result.error);
+            }
+        } catch (error) {
+            console.error('Error fetching session data:', error);
+        }
+    }
+
+    document.getElementById('sessionForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        loadSessionData();
+    });
+
+    // Initialize
+    async function init() {
+        await loadBrokerMeta();
+        setDefaultDates();
+        loadSessionData();
+    }
+
+    init();
+</script>
+{% endblock %}

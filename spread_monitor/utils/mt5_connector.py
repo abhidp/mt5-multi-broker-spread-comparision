@@ -139,24 +139,41 @@ class MT5Connector:
                 logger.error(f"[{broker.name}] Symbol {broker_symbol} not found")
                 return None
 
-            # Ensure symbol is visible in Market Watch
-            if not symbol_info.visible:
-                if not mt5.symbol_select(broker_symbol, True):
-                    logger.error(f"[{broker.name}] Failed to select {broker_symbol}")
-                    return None
-
-            # Get current tick
-            tick = mt5.symbol_info_tick(broker_symbol)
-            if tick is None:
-                logger.error(f"[{broker.name}] Could not get tick for {broker_symbol}")
+            # Force symbol selection to refresh market data
+            # First deselect, then reselect to clear any cached data
+            mt5.symbol_select(broker_symbol, False)
+            time.sleep(0.1)
+            if not mt5.symbol_select(broker_symbol, True):
+                logger.error(f"[{broker.name}] Failed to select {broker_symbol}")
                 return None
+
+            # Wait for fresh tick data to arrive
+            time.sleep(0.5)
+
+            # Get current tick using copy_ticks_from for fresh server data
+            from datetime import timedelta
+            ticks = mt5.copy_ticks_from(broker_symbol, datetime.now(timezone.utc), 1, mt5.COPY_TICKS_ALL)
+
+            if ticks is None or len(ticks) == 0:
+                # Fallback to symbol_info_tick
+                tick = mt5.symbol_info_tick(broker_symbol)
+                if tick is None:
+                    logger.error(f"[{broker.name}] Could not get tick for {broker_symbol}")
+                    return None
+                bid = tick.bid
+                ask = tick.ask
+            else:
+                # Use the latest tick from server
+                latest_tick = ticks[-1]
+                bid = latest_tick['bid']
+                ask = latest_tick['ask']
 
             # Calculate spread with proper rounding based on symbol digits
             digits = symbol_info.digits
             point = symbol_info.point
 
-            bid = round(tick.bid, digits)
-            ask = round(tick.ask, digits)
+            bid = round(bid, digits)
+            ask = round(ask, digits)
             spread = round(ask - bid, digits)
             spread_points = int(round(spread / point)) if point > 0 else 0
 

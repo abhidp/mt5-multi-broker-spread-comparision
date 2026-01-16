@@ -1,0 +1,6 @@
+ICMarkets: AUD 9.00 round turn  , USD 7.00 round turn
+FusionMarkets: AUD 4.5 round turn , USD 4.5 round turn
+ThinkMarkets: AUD 7.00 round turn , USD 7.00 round turn
+Vantage: AUD 5.00 round turn , USD 5.00 round turn
+Pepperstone: AUD 7.00 round turn , USD 7.00 round turn
+FPMarkets: AUD 7.00 round turn , USD 7.00 round turn

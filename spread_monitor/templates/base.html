@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Spread Monitor{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <style>
+        .navbar-brand {
+            font-weight: bold;
+        }
+        .spread-card {
+            transition: transform 0.2s;
+        }
+        .spread-card:hover {
+            transform: translateY(-2px);
+        }
+        .spread-lowest {
+            border-left: 4px solid #198754;
+        }
+        .spread-highest {
+            border-left: 4px solid #dc3545;
+        }
+        .spread-mid {
+            border-left: 4px solid #ffc107;
+        }
+        .spread-value {
+            font-size: 2rem;
+            font-weight: bold;
+        }
+        .spread-points {
+            font-size: 1.2rem;
+            color: #6c757d;
+        }
+        .last-updated {
+            font-size: 0.85rem;
+            color: #6c757d;
+        }
+        .chart-container {
+            min-height: 500px;
+        }
+        .stats-table th {
+            background-color: #f8f9fa;
+        }
+        .recommendation-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="{{ url_for('index') }}">Spread Monitor</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'index' %}active{% endif %}" href="{{ url_for('index') }}">Live</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'history' %}active{% endif %}" href="{{ url_for('history') }}">History</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'stats' %}active{% endif %}" href="{{ url_for('stats') }}">Statistics</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'sessions' %}active{% endif %}" href="{{ url_for('sessions') }}">Sessions</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container mt-4">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="container mt-5 mb-3">
+        <hr>
+        <p class="text-muted text-center small">MT5 Spread Monitor - Comparing spreads across brokers</p>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Global broker color mapping for consistent colors across all charts
+        const BROKER_COLORS = {
+            'Pepperstone Razor': '#0d6efd',      // Blue
+            'FusionMarkets Zero': '#198754',     // Green
+            'ThinkMarkets ThinkZero': '#dc3545', // Red
+            'ICMarkets Raw': '#ffc107',          // Yellow/Amber
+            'VantageMarkets Raw': '#6f42c1',     // Purple
+            'FPMarkets Raw': '#fd7e14'           // Orange
+        };
+
+        // Fallback colors for any brokers not in the mapping
+        const FALLBACK_COLORS = ['#20c997', '#e83e8c', '#17a2b8', '#6610f2', '#28a745', '#007bff'];
+        let fallbackIndex = 0;
+
+        function getBrokerColor(brokerName) {
+            if (BROKER_COLORS[brokerName]) {
+                return BROKER_COLORS[brokerName];
+            }
+            // Assign a fallback color for unknown brokers
+            const color = FALLBACK_COLORS[fallbackIndex % FALLBACK_COLORS.length];
+            fallbackIndex++;
+            return color;
+        }
+    </script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>
