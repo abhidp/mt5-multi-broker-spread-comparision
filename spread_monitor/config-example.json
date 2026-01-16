@@ -1,0 +1,34 @@
+{
+  "collection_interval_minutes": 5,
+  "symbols": [ "XAUUSD" ],
+  "data_directory": "./data",
+  "log_directory": "./logs",
+  "retry_attempts": 3,
+  "retry_delay_seconds": 5,
+  "brokers": [
+    {
+      "name": "Pepperstone",
+      "server": "Pepperstone-Demo",
+      "login": 12345678,
+      "password": "your_mt5_password",
+      "path": "C:/Program Files/Pepperstone MetaTrader 5/terminal64.exe",
+      "symbol_suffix": ".a"
+    },
+    {
+      "name": "Fusion",
+      "server": "FusionMarketsAU-Demo",
+      "login": 12345678,
+      "password": "your_mt5_password",
+      "path": "C:/Users/abhid/AppData/Roaming/Fusion Markets MT5 Terminal/terminal64.exe",
+      "symbol_suffix": ".r"
+    },
+    {
+      "name": "ThinkMarkets",
+      "server": "ThinkMarkets-Demo",
+      "login": 12345678,
+      "password": "your_mt5_password",
+      "path": "C:/Program Files/TF Global Markets MetaTrader 5 Terminal/terminal64.exe",
+      "symbol_suffix": "x"
+    }
+  ]
+}
