@@ -60,7 +60,7 @@
     <div class="col-lg-4 mb-4">
         <div class="card h-100">
             <div class="card-header">
-                <h5 class="mb-0">Best Broker by Session</h5>
+                <h5 class="mb-0">Tightest Spreads by Session</h5>
             </div>
             <div class="card-body">
                 <div id="recommendations">
@@ -126,6 +126,37 @@
         'Overlap': '#198754',
         'NewYork': '#dc3545'
     };
+    const sessionFlagUrls = {
+        'Sydney': 'https://flagcdn.com/20x15/au.png',
+        'London': 'https://flagcdn.com/20x15/gb.png',
+        'NewYork': 'https://flagcdn.com/20x15/us.png'
+    };
+
+    function getFlagImg(countryCode) {
+        // Use higher resolution (48x36) and scale down for crisp display on retina screens
+        return `<img src="https://flagcdn.com/48x36/${countryCode}.png" alt="${countryCode}" style="width: 20px; height: 15px; vertical-align: middle; margin-right: 4px; object-fit: cover;">`;
+    }
+
+    function getSessionDisplay(session) {
+        const displayNames = {
+            'Sydney': getFlagImg('au') + ' Sydney',
+            'London': getFlagImg('gb') + ' London',
+            'Overlap': getFlagImg('gb') + getFlagImg('us') + ' Overlap',
+            'NewYork': getFlagImg('us') + ' New York'
+        };
+        return displayNames[session] || session;
+    }
+
+    function getSessionDisplayText(session) {
+        // Plain text version for chart axes (no flags - Plotly doesn't render them well)
+        const displayNames = {
+            'Sydney': 'Sydney (AU)',
+            'London': 'London (UK)',
+            'Overlap': 'Overlap (UK/US)',
+            'NewYork': 'New York (US)'
+        };
+        return displayNames[session] || session;
+    }
 
     function getBrokerLogo(brokerName) {
         const meta = brokerMeta[brokerName];
@@ -184,7 +215,7 @@
 
         const trace = {
             z: zValues,
-            x: sessions,
+            x: sessions.map(s => getSessionDisplayText(s)),
             y: brokers,
             type: 'heatmap',
             colorscale: [
@@ -218,7 +249,7 @@
 
         const traces = brokers.map((broker) => {
             return {
-                x: sessions,
+                x: sessions.map(s => getSessionDisplayText(s)),
                 y: sessions.map(session => {
                     const match = data.find(d => d.broker === broker && d.session === session);
                     return match ? match.avg : 0;
@@ -261,7 +292,7 @@
             html += `
                 <li class="list-group-item d-flex justify-content-between align-items-center">
                     <div>
-                        <strong style="color: ${sessionColors[session]}">${session}</strong>
+                        <strong style="color: ${sessionColors[session]}">${getSessionDisplay(session)}</strong>
                         <br>
                         <small class="text-muted d-flex align-items-center mt-1">
                             Best: ${getBrokerLogo(best.broker)}${best.broker}
@@ -304,7 +335,7 @@
 
             html += `
                 <tr class="${isLowest ? 'table-success' : ''}">
-                    <td>${isNewSession ? `<strong>${row.session}</strong>` : ''}</td>
+                    <td>${isNewSession ? `<strong>${getSessionDisplay(row.session)}</strong>` : ''}</td>
                     <td>
                         <div class="broker-name-wrapper">
                             ${getBrokerLogo(row.broker)}

@@ -71,6 +71,9 @@
                     <li class="nav-item">
                         <a class="nav-link {% if request.endpoint == 'sessions' %}active{% endif %}" href="{{ url_for('sessions') }}">Sessions</a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'costs' %}active{% endif %}" href="{{ url_for('costs') }}">Costs</a>
+                    </li>
                 </ul>
             </div>
         </div>

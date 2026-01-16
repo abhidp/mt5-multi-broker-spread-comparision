@@ -18,6 +18,7 @@ import pandas as pd
 from flask import Flask, jsonify, render_template, request
 
 from utils.data_utils import CSV_COLUMNS, get_csv_filename, load_csv_data
+from utils.cost_calculator import calculate_trading_costs, get_point_value, get_savings_info, get_currency_info
 
 app = Flask(__name__)
 
@@ -64,6 +65,12 @@ def stats():
 def sessions():
     """Session analysis page - shows heatmap and recommendations."""
     return render_template("sessions.html")
+
+
+@app.route("/costs")
+def costs():
+    """Trading costs page - shows total cost comparison including commissions."""
+    return render_template("costs.html")
 
 
 # =============================================================================
@@ -318,6 +325,114 @@ def api_sessions():
         return jsonify({
             "success": True,
             "data": data
+        })
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route("/api/trading-costs")
+def api_trading_costs():
+    """
+    Get trading costs comparison including spread and commission.
+
+    Query params:
+        start: Start date (YYYY-MM-DD)
+        end: End date (YYYY-MM-DD)
+        symbol: Symbol to filter (default: XAUUSD)
+        lot_size: Lot size for calculation (default: 1.0)
+
+    Returns:
+        JSON with trading costs per broker
+    """
+    try:
+        start_str = request.args.get("start")
+        end_str = request.args.get("end")
+        symbol = request.args.get("symbol", "XAUUSD")
+        lot_size = float(request.args.get("lot_size", 1.0))
+
+        start_date = datetime.strptime(start_str, "%Y-%m-%d") if start_str else None
+        end_date = datetime.strptime(end_str, "%Y-%m-%d") if end_str else None
+
+        df = load_csv_data(DATA_DIR, start_date, end_date)
+
+        if df.empty:
+            return jsonify({
+                "success": True,
+                "data": [],
+                "savings": None,
+                "lot_size": lot_size,
+                "symbol": symbol
+            })
+
+        # Filter by symbol if specified
+        if symbol:
+            df = df[df["symbol"] == symbol]
+
+        # Calculate average spread per broker
+        broker_stats = df.groupby("broker")["spread_points"].agg([
+            ("avg", "mean")
+        ]).reset_index().to_dict(orient="records")
+
+        # Get commission data from config (including commission-free symbols)
+        broker_commissions = {}
+        for broker in config.get("brokers", []):
+            broker_commissions[broker["name"]] = {
+                "commission_per_lot": broker.get("commission_per_lot", 0),
+                "commission_free_symbols": broker.get("commission_free_symbols", [])
+            }
+
+        # Calculate trading costs
+        costs = calculate_trading_costs(
+            broker_stats=broker_stats,
+            broker_commissions=broker_commissions,
+            symbol=symbol,
+            lot_size=lot_size
+        )
+
+        # Get savings information
+        savings = get_savings_info(costs)
+
+        currency = get_currency_info()
+        return jsonify({
+            "success": True,
+            "data": costs,
+            "savings": savings,
+            "lot_size": lot_size,
+            "symbol": symbol,
+            "point_value": get_point_value(symbol),
+            "currency": currency
+        })
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route("/api/commissions")
+def api_commissions():
+    """
+    Get commission data for all brokers.
+
+    Returns:
+        JSON with broker commission information
+    """
+    try:
+        commissions = {}
+        for broker in config.get("brokers", []):
+            commissions[broker["name"]] = {
+                "commission_per_lot": broker.get("commission_per_lot", 0),
+                "commission_currency": broker.get("commission_currency", "USD")
+            }
+
+        return jsonify({
+            "success": True,
+            "data": commissions
         })
 
     except Exception as e:
