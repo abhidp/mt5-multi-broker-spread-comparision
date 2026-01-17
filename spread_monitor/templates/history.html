@@ -130,12 +130,16 @@
     const symbol = document.getElementById('symbol').value
     const interval = collectionInterval + 'm'
 
+    const themeLayout = getPlotlyThemeLayout()
     const layout = {
+      ...themeLayout,
       xaxis: {
+        ...themeLayout.xaxis,
         title: 'Time',
         type: 'date'
       },
       yaxis: {
+        ...themeLayout.yaxis,
         title: currentYAxis === 'points' ? 'Spread (Points)' : 'Spread (Price)',
         rangemode: 'tozero',
         fixedrange: true

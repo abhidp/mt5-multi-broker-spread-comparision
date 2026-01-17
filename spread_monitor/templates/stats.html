@@ -17,7 +17,7 @@ endblock %} {% block extra_css %}
     user-select: none;
   }
   .sortable-header:hover {
-    background-color: #e9ecef;
+    background-color: var(--hover-bg);
   }
   .sort-icon {
     opacity: 0.3;
@@ -355,9 +355,11 @@ endblock %} {% block extra_css %}
       }
     })
 
+    const themeLayout = getPlotlyThemeLayout()
     const layout = {
-      xaxis: { tickangle: -45 },
-      yaxis: { title: 'Spread (Points)' },
+      ...themeLayout,
+      xaxis: { ...themeLayout.xaxis, tickangle: -45 },
+      yaxis: { ...themeLayout.yaxis, title: 'Spread (Points)' },
       margin: { t: 20, r: 20, b: 120 },
       showlegend: true,
       legend: { orientation: 'h', y: -0.8 }
@@ -386,9 +388,11 @@ endblock %} {% block extra_css %}
       }
     })
 
+    const themeLayout = getPlotlyThemeLayout()
     const layout = {
-      xaxis: { title: 'Spread (Points)' },
-      yaxis: { title: 'Frequency' },
+      ...themeLayout,
+      xaxis: { ...themeLayout.xaxis, title: 'Spread (Points)' },
+      yaxis: { ...themeLayout.yaxis, title: 'Frequency' },
       barmode: 'overlay',
       margin: { t: 20, r: 20 },
       legend: { orientation: 'h', y: -0.15 }
