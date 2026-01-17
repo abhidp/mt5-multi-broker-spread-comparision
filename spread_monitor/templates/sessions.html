@@ -166,6 +166,11 @@
         return '';
     }
 
+    function getBrokerShortName(brokerName) {
+        const meta = brokerMeta[brokerName];
+        return meta && meta.short_name ? meta.short_name : brokerName;
+    }
+
     async function loadBrokerMeta() {
         try {
             const response = await fetch('/api/brokers');
@@ -216,7 +221,7 @@
         const trace = {
             z: zValues,
             x: sessions.map(s => getSessionDisplayText(s)),
-            y: brokers,
+            y: brokers.map(b => getBrokerShortName(b)),
             type: 'heatmap',
             colorscale: [
                 [0, '#198754'],
@@ -255,7 +260,7 @@
                     return match ? match.avg : 0;
                 }),
                 type: 'bar',
-                name: broker,
+                name: getBrokerShortName(broker),
                 marker: { color: getBrokerColor(broker) }
             };
         });

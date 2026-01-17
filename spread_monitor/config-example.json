@@ -8,6 +8,7 @@
   "brokers": [
     {
       "name": "Pepperstone Razor",
+      "short_name": "PepperRaw",
       "server": "Pepperstone-Demo",
       "login": 61462124,
       "password": "your_password_here",
@@ -20,6 +21,7 @@
     },
     {
       "name": "FusionMarkets Zero",
+      "short_name": "FusionZero",
       "server": "FusionMarketsAU-Demo",
       "login": 258536,
       "password": "your_password_here",
@@ -31,6 +33,7 @@
     },
     {
       "name": "ThinkMarkets ThinkZero",
+      "short_name": "ThinkZero",
       "server": "ThinkMarkets-Demo",
       "login": 74444,
       "password": "your_password_here",
@@ -42,6 +45,7 @@
     },
     {
       "name": "ICMarkets Raw",
+      "short_name": "ICRaw",
       "server": "ICMarketsAU-Demo",
       "login": 23005351,
       "password": "your_password_here",
@@ -53,6 +57,7 @@
     },
     {
       "name": "VantageMarkets Raw",
+      "short_name": "VantageRaw",
       "server": "VantageGlobalPrimeAU-Demo",
       "login": 11237748,
       "password": "your_password_here",
@@ -65,6 +70,7 @@
     },
     {
       "name": "FPMarkets Raw",
+      "short_name": "FPRaw",
       "server": "FPMarkets-Demo",
       "login": 7376732,
       "password": "your_password_here",

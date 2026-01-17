@@ -109,7 +109,8 @@ def api_brokers():
             website = broker.get("website", "")
             brokers[broker["name"]] = {
                 "website": website,
-                "logo_url": f"https://t3.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://{website}&size=128" if website else ""
+                "logo_url": f"https://t3.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://{website}&size=128" if website else "",
+                "short_name": broker.get("short_name", broker["name"])
             }
 
         return jsonify({
