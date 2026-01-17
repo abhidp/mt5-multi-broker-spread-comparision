@@ -1,298 +1,321 @@
-{% extends "base.html" %}
-
-{% block title %}Statistics - Spread Monitor{% endblock %}
-
-{% block extra_css %}
+{% extends "base.html" %} {% block title %}Statistics - Spread Monitor{%
+endblock %} {% block extra_css %}
 <style>
-    .broker-logo {
-        width: 24px;
-        height: 24px;
-        object-fit: contain;
-        margin-right: 8px;
-        border-radius: 4px;
-    }
-    .broker-name-wrapper {
-        display: flex;
-        align-items: center;
-    }
-    .sortable-header {
-        cursor: pointer;
-        user-select: none;
-    }
-    .sortable-header:hover {
-        background-color: #e9ecef;
-    }
-    .sort-icon {
-        opacity: 0.3;
-        margin-left: 5px;
-    }
-    .sort-icon.active {
-        opacity: 1;
-    }
+  .broker-logo {
+    width: 24px;
+    height: 24px;
+    object-fit: contain;
+    margin-right: 8px;
+    border-radius: 4px;
+  }
+  .broker-name-wrapper {
+    display: flex;
+    align-items: center;
+  }
+  .sortable-header {
+    cursor: pointer;
+    user-select: none;
+  }
+  .sortable-header:hover {
+    background-color: #e9ecef;
+  }
+  .sort-icon {
+    opacity: 0.3;
+    margin-left: 5px;
+  }
+  .sort-icon.active {
+    opacity: 1;
+  }
 </style>
-{% endblock %}
-
-{% block content %}
+{% endblock %} {% block content %}
 <h2 class="mb-4">Statistical Analysis</h2>
 
 <div class="card mb-4">
-    <div class="card-body">
-        <form class="row g-3 align-items-end" id="statsForm">
-            <div class="col-md-3">
-                <label for="startDate" class="form-label">Start Date</label>
-                <input type="date" class="form-control" id="startDate" required>
-            </div>
-            <div class="col-md-3">
-                <label for="endDate" class="form-label">End Date</label>
-                <input type="date" class="form-control" id="endDate" required>
-            </div>
-            <div class="col-md-3">
-                <label for="symbol" class="form-label">Symbol</label>
-                <select class="form-select" id="symbol">
-                    <option value="XAUUSD" selected>XAUUSD</option>
-                </select>
-            </div>
-            <div class="col-md-3">
-                <button type="submit" class="btn btn-primary w-100">Calculate Stats</button>
-            </div>
-        </form>
-    </div>
+  <div class="card-body">
+    <form class="row g-3 align-items-end" id="statsForm">
+      <div class="col-md-3">
+        <label for="startDate" class="form-label">Start Date</label>
+        <input type="date" class="form-control" id="startDate" required />
+      </div>
+      <div class="col-md-3">
+        <label for="endDate" class="form-label">End Date</label>
+        <input type="date" class="form-control" id="endDate" required />
+      </div>
+      <div class="col-md-3">
+        <label for="symbol" class="form-label">Symbol</label>
+        <select class="form-select" id="symbol">
+          <option value="XAUUSD" selected>XAUUSD</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <button type="submit" class="btn btn-primary w-100">
+          Calculate Stats
+        </button>
+      </div>
+    </form>
+  </div>
 </div>
 
 <div class="row">
-    <div class="col-lg-6 mb-4">
-        <div class="card h-100">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">Spread Statistics (Points)</h5>
-                <button class="btn btn-sm btn-outline-success" onclick="exportToExcel()" id="exportBtn" disabled>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="me-1" viewBox="0 0 16 16">
-                        <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
-                        <path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/>
-                    </svg>
-                    Export Excel
-                </button>
-            </div>
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-hover stats-table" id="statsTable">
-                        <thead>
-                            <tr>
-                                <th class="sortable-header" onclick="sortStatsTable('broker')">
-                                    Broker
-                                    <span class="sort-icon" data-col="broker">↕</span>
-                                </th>
-                                <th class="sortable-header" onclick="sortStatsTable('avg')">
-                                    Average
-                                    <span class="sort-icon active" data-col="avg">↑</span>
-                                </th>
-                                <th class="sortable-header" onclick="sortStatsTable('min')">
-                                    Min
-                                    <span class="sort-icon" data-col="min">↕</span>
-                                </th>
-                                <th class="sortable-header" onclick="sortStatsTable('max')">
-                                    Max
-                                    <span class="sort-icon" data-col="max">↕</span>
-                                </th>
-                                <th class="sortable-header" onclick="sortStatsTable('std')">
-                                    Std Dev
-                                    <span class="sort-icon" data-col="std">↕</span>
-                                </th>
-                                <th class="sortable-header" onclick="sortStatsTable('count')">
-                                    Count
-                                    <span class="sort-icon" data-col="count">↕</span>
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td colspan="6" class="text-center text-muted">Loading...</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+  <div class="col-lg-6 mb-4">
+    <div class="card h-100">
+      <div
+        class="card-header d-flex justify-content-between align-items-center"
+      >
+        <h5 class="mb-0">Spread Statistics (Points)</h5>
+        <button
+          class="btn btn-sm btn-outline-success"
+          onclick="exportToExcel()"
+          id="exportBtn"
+          disabled
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="16"
+            height="16"
+            fill="currentColor"
+            class="me-1"
+            viewBox="0 0 16 16"
+          >
+            <path
+              d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"
+            />
+            <path
+              d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"
+            />
+          </svg>
+          Export Excel
+        </button>
+      </div>
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table table-hover stats-table" id="statsTable">
+            <thead>
+              <tr>
+                <th class="sortable-header" onclick="sortStatsTable('broker')">
+                  Broker
+                  <span class="sort-icon" data-col="broker">↕</span>
+                </th>
+                <th class="sortable-header" onclick="sortStatsTable('avg')">
+                  Average
+                  <span class="sort-icon active" data-col="avg">↑</span>
+                </th>
+                <th class="sortable-header" onclick="sortStatsTable('min')">
+                  Min
+                  <span class="sort-icon" data-col="min">↕</span>
+                </th>
+                <th class="sortable-header" onclick="sortStatsTable('max')">
+                  Max
+                  <span class="sort-icon" data-col="max">↕</span>
+                </th>
+                <th class="sortable-header" onclick="sortStatsTable('std')">
+                  Std Dev
+                  <span class="sort-icon" data-col="std">↕</span>
+                </th>
+                <th class="sortable-header" onclick="sortStatsTable('count')">
+                  Count
+                  <span class="sort-icon" data-col="count">↕</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td colspan="6" class="text-center text-muted">Loading...</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
+      </div>
     </div>
+  </div>
 
-    <div class="col-lg-6 mb-4">
-        <div class="card h-100">
-            <div class="card-header">
-                <h5 class="mb-0">Spread Distribution</h5>
-            </div>
-            <div class="card-body">
-                <div id="boxPlot" style="min-height: 350px;"></div>
-            </div>
-        </div>
+  <div class="col-lg-6 mb-4">
+    <div class="card h-100">
+      <div class="card-header">
+        <h5 class="mb-0">Spread Distribution</h5>
+      </div>
+      <div class="card-body">
+        <div id="boxPlot" style="min-height: 350px"></div>
+      </div>
     </div>
+  </div>
 </div>
 
 <div class="row">
-    <div class="col-12 mb-4">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">Spread Histogram</h5>
-            </div>
-            <div class="card-body">
-                <div id="histogram" class="chart-container"></div>
-            </div>
-        </div>
+  <div class="col-12 mb-4">
+    <div class="card">
+      <div class="card-header">
+        <h5 class="mb-0">Spread Histogram</h5>
+      </div>
+      <div class="card-body">
+        <div id="histogram" class="chart-container"></div>
+      </div>
     </div>
+  </div>
 </div>
 
 <div class="row">
-    <div class="col-12">
-        <div class="card recommendation-card">
-            <div class="card-body">
-                <h5 class="card-title">Recommendation</h5>
-                <p class="card-text mb-0" id="recommendation">
-                    Load data to see broker recommendation based on average spread.
-                </p>
-            </div>
-        </div>
+  <div class="col-12">
+    <div class="card recommendation-card">
+      <div class="card-body">
+        <h5 class="card-title">Recommendation</h5>
+        <p class="card-text mb-0" id="recommendation">
+          Load data to see broker recommendation based on average spread.
+        </p>
+      </div>
     </div>
+  </div>
 </div>
-{% endblock %}
-
-{% block extra_js %}
+{% endblock %} {% block extra_js %}
 <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 <script>
-    let brokerMeta = {};
-    let statsData = [];
-    let statsSort = { column: 'avg', direction: 'asc' };
+  let brokerMeta = {}
+  let statsData = []
+  let statsSort = { column: 'avg', direction: 'asc' }
 
-    function exportToExcel() {
-        if (!statsData || statsData.length === 0) {
-            alert('No data to export');
-            return;
-        }
-
-        const startDate = document.getElementById('startDate').value;
-        const endDate = document.getElementById('endDate').value;
-        const symbol = document.getElementById('symbol').value;
-
-        // Prepare data for export
-        const exportData = statsData.map(stat => ({
-            'Broker': stat.broker,
-            'Average (pts)': stat.avg.toFixed(2),
-            'Min (pts)': stat.min,
-            'Max (pts)': stat.max,
-            'Std Dev': stat.std.toFixed(2),
-            'Sample Count': stat.count
-        }));
-
-        // Create workbook and worksheet
-        const wb = XLSX.utils.book_new();
-        const ws = XLSX.utils.json_to_sheet(exportData);
-
-        // Set column widths
-        ws['!cols'] = [
-            { wch: 25 },  // Broker
-            { wch: 15 },  // Average
-            { wch: 12 },  // Min
-            { wch: 12 },  // Max
-            { wch: 12 },  // Std Dev
-            { wch: 15 }   // Sample Count
-        ];
-
-        // Add worksheet to workbook
-        XLSX.utils.book_append_sheet(wb, ws, 'Spread Statistics');
-
-        // Generate filename with date range
-        const filename = `spread_stats_${symbol}_${startDate}_to_${endDate}.xlsx`;
-
-        // Download the file
-        XLSX.writeFile(wb, filename);
+  function exportToExcel() {
+    if (!statsData || statsData.length === 0) {
+      alert('No data to export')
+      return
     }
 
-    function getBrokerLogo(brokerName) {
-        const meta = brokerMeta[brokerName];
-        if (meta && meta.logo_url) {
-            return `<img src="${meta.logo_url}" alt="${brokerName}" class="broker-logo" onerror="this.style.display='none'">`;
-        }
-        return '';
+    const startDate = document.getElementById('startDate').value
+    const endDate = document.getElementById('endDate').value
+    const symbol = document.getElementById('symbol').value
+
+    // Prepare data for export
+    const exportData = statsData.map((stat) => ({
+      'Broker': stat.broker,
+      'Average (pts)': stat.avg.toFixed(2),
+      'Min (pts)': stat.min,
+      'Max (pts)': stat.max,
+      'Std Dev': stat.std.toFixed(2),
+      'Sample Count': stat.count
+    }))
+
+    // Create workbook and worksheet
+    const wb = XLSX.utils.book_new()
+    const ws = XLSX.utils.json_to_sheet(exportData)
+
+    // Set column widths
+    ws['!cols'] = [
+      { wch: 25 }, // Broker
+      { wch: 15 }, // Average
+      { wch: 12 }, // Min
+      { wch: 12 }, // Max
+      { wch: 12 }, // Std Dev
+      { wch: 15 } // Sample Count
+    ]
+
+    // Add worksheet to workbook
+    XLSX.utils.book_append_sheet(wb, ws, 'Spread Statistics')
+
+    // Generate filename with date range
+    const filename = `spread_stats_${symbol}_${startDate}_to_${endDate}.xlsx`
+
+    // Download the file
+    XLSX.writeFile(wb, filename)
+  }
+
+  function getBrokerLogo(brokerName) {
+    const meta = brokerMeta[brokerName]
+    if (meta && meta.logo_url) {
+      return `<img src="${meta.logo_url}" alt="${brokerName}" class="broker-logo" onerror="this.style.display='none'">`
+    }
+    return ''
+  }
+
+  function getBrokerShortName(brokerName) {
+    const meta = brokerMeta[brokerName]
+    return meta && meta.short_name ? meta.short_name : brokerName
+  }
+
+  async function loadBrokerMeta() {
+    try {
+      const response = await fetch('/api/brokers')
+      const result = await response.json()
+      if (result.success) {
+        brokerMeta = result.data
+      }
+    } catch (error) {
+      console.error('Error fetching broker metadata:', error)
+    }
+  }
+
+  function setDefaultDates() {
+    const today = new Date()
+    const weekAgo = new Date(today)
+    weekAgo.setDate(weekAgo.getDate() - 7)
+
+    document.getElementById('endDate').value = today.toISOString().split('T')[0]
+    document.getElementById('startDate').value = weekAgo
+      .toISOString()
+      .split('T')[0]
+  }
+
+  function sortStatsTable(column) {
+    if (statsSort.column === column) {
+      statsSort.direction = statsSort.direction === 'asc' ? 'desc' : 'asc'
+    } else {
+      statsSort.column = column
+      statsSort.direction = 'asc'
     }
 
-    async function loadBrokerMeta() {
-        try {
-            const response = await fetch('/api/brokers');
-            const result = await response.json();
-            if (result.success) {
-                brokerMeta = result.data;
-            }
-        } catch (error) {
-            console.error('Error fetching broker metadata:', error);
-        }
+    // Update sort icons
+    document.querySelectorAll('#statsTable .sort-icon').forEach((icon) => {
+      icon.classList.remove('active')
+      icon.textContent = '↕'
+    })
+    const activeIcon = document.querySelector(
+      `#statsTable .sort-icon[data-col="${column}"]`
+    )
+    if (activeIcon) {
+      activeIcon.classList.add('active')
+      activeIcon.textContent = statsSort.direction === 'asc' ? '↑' : '↓'
     }
 
-    function setDefaultDates() {
-        const today = new Date();
-        const weekAgo = new Date(today);
-        weekAgo.setDate(weekAgo.getDate() - 7);
+    renderStatsTable(statsData)
+  }
 
-        document.getElementById('endDate').value = today.toISOString().split('T')[0];
-        document.getElementById('startDate').value = weekAgo.toISOString().split('T')[0];
+  function renderStatsTable(stats) {
+    const tbody = document.querySelector('#statsTable tbody')
+
+    if (!stats || stats.length === 0) {
+      tbody.innerHTML =
+        '<tr><td colspan="6" class="text-center text-muted">No data available.</td></tr>'
+      document.getElementById('exportBtn').disabled = true
+      return
     }
 
-    function sortStatsTable(column) {
-        if (statsSort.column === column) {
-            statsSort.direction = statsSort.direction === 'asc' ? 'desc' : 'asc';
-        } else {
-            statsSort.column = column;
-            statsSort.direction = 'asc';
-        }
+    // Store stats globally for re-sorting and export
+    statsData = stats
 
-        // Update sort icons
-        document.querySelectorAll('#statsTable .sort-icon').forEach(icon => {
-            icon.classList.remove('active');
-            icon.textContent = '↕';
-        });
-        const activeIcon = document.querySelector(`#statsTable .sort-icon[data-col="${column}"]`);
-        if (activeIcon) {
-            activeIcon.classList.add('active');
-            activeIcon.textContent = statsSort.direction === 'asc' ? '↑' : '↓';
-        }
+    // Enable export button
+    document.getElementById('exportBtn').disabled = false
 
-        renderStatsTable(statsData);
-    }
+    // Sort the data
+    const sorted = [...stats].sort((a, b) => {
+      let valA = a[statsSort.column]
+      let valB = b[statsSort.column]
 
-    function renderStatsTable(stats) {
-        const tbody = document.querySelector('#statsTable tbody');
+      if (typeof valA === 'string') {
+        valA = valA.toLowerCase()
+        valB = valB.toLowerCase()
+        return statsSort.direction === 'asc'
+          ? valA.localeCompare(valB)
+          : valB.localeCompare(valA)
+      }
 
-        if (!stats || stats.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No data available.</td></tr>';
-            document.getElementById('exportBtn').disabled = true;
-            return;
-        }
+      return statsSort.direction === 'asc' ? valA - valB : valB - valA
+    })
 
-        // Store stats globally for re-sorting and export
-        statsData = stats;
+    // Find lowest average for highlighting
+    const lowestAvg = Math.min(...stats.map((s) => s.avg))
 
-        // Enable export button
-        document.getElementById('exportBtn').disabled = false;
-
-        // Sort the data
-        const sorted = [...stats].sort((a, b) => {
-            let valA = a[statsSort.column];
-            let valB = b[statsSort.column];
-
-            if (typeof valA === 'string') {
-                valA = valA.toLowerCase();
-                valB = valB.toLowerCase();
-                return statsSort.direction === 'asc'
-                    ? valA.localeCompare(valB)
-                    : valB.localeCompare(valA);
-            }
-
-            return statsSort.direction === 'asc' ? valA - valB : valB - valA;
-        });
-
-        // Find lowest average for highlighting
-        const lowestAvg = Math.min(...stats.map(s => s.avg));
-
-        let html = '';
-        sorted.forEach(stat => {
-            const isLowest = stat.avg === lowestAvg;
-            html += `
+    let html = ''
+    sorted.forEach((stat) => {
+      const isLowest = stat.avg === lowestAvg
+      html += `
                 <tr class="${isLowest ? 'table-success' : ''}">
                     <td>
                         <div class="broker-name-wrapper">
@@ -307,133 +330,137 @@
                     <td>${stat.std.toFixed(2)}</td>
                     <td>${stat.count}</td>
                 </tr>
-            `;
-        });
+            `
+    })
 
-        tbody.innerHTML = html;
+    tbody.innerHTML = html
+  }
+
+  function renderBoxPlot(stats, rawData) {
+    if (!rawData || rawData.length === 0) {
+      document.getElementById('boxPlot').innerHTML =
+        '<p class="text-center text-muted py-5">No data available.</p>'
+      return
     }
 
-    function renderBoxPlot(stats, rawData) {
-        if (!rawData || rawData.length === 0) {
-            document.getElementById('boxPlot').innerHTML =
-                '<p class="text-center text-muted py-5">No data available.</p>';
-            return;
-        }
+    const brokers = [...new Set(rawData.map((d) => d.broker))]
 
-        const brokers = [...new Set(rawData.map(d => d.broker))];
+    const traces = brokers.map((broker) => {
+      const brokerData = rawData.filter((d) => d.broker === broker)
+      return {
+        y: brokerData.map((d) => d.spread_points),
+        type: 'box',
+        name: getBrokerShortName(broker),
+        marker: { color: getBrokerColor(broker) }
+      }
+    })
 
-        const traces = brokers.map((broker) => {
-            const brokerData = rawData.filter(d => d.broker === broker);
-            return {
-                y: brokerData.map(d => d.spread_points),
-                type: 'box',
-                name: broker,
-                marker: { color: getBrokerColor(broker) }
-            };
-        });
-
-        const layout = {
-            yaxis: { title: 'Spread (Points)' },
-            margin: { t: 20, r: 20 },
-            showlegend: true,
-            legend: { orientation: 'h', y: -0.2 }
-        };
-
-        Plotly.newPlot('boxPlot', traces, layout, { responsive: true });
+    const layout = {
+      xaxis: { tickangle: -45 },
+      yaxis: { title: 'Spread (Points)' },
+      margin: { t: 20, r: 20, b: 120 },
+      showlegend: true,
+      legend: { orientation: 'h', y: -0.8 }
     }
 
-    function renderHistogram(rawData) {
-        if (!rawData || rawData.length === 0) {
-            document.getElementById('histogram').innerHTML =
-                '<p class="text-center text-muted py-5">No data available.</p>';
-            return;
-        }
+    Plotly.newPlot('boxPlot', traces, layout, { responsive: true })
+  }
 
-        const brokers = [...new Set(rawData.map(d => d.broker))];
-
-        const traces = brokers.map((broker) => {
-            const brokerData = rawData.filter(d => d.broker === broker);
-            return {
-                x: brokerData.map(d => d.spread_points),
-                type: 'histogram',
-                name: broker,
-                opacity: 0.7,
-                marker: { color: getBrokerColor(broker) }
-            };
-        });
-
-        const layout = {
-            xaxis: { title: 'Spread (Points)' },
-            yaxis: { title: 'Frequency' },
-            barmode: 'overlay',
-            margin: { t: 20, r: 20 },
-            legend: { orientation: 'h', y: -0.15 }
-        };
-
-        Plotly.newPlot('histogram', traces, layout, { responsive: true });
+  function renderHistogram(rawData) {
+    if (!rawData || rawData.length === 0) {
+      document.getElementById('histogram').innerHTML =
+        '<p class="text-center text-muted py-5">No data available.</p>'
+      return
     }
 
-    function updateRecommendation(stats) {
-        const rec = document.getElementById('recommendation');
+    const brokers = [...new Set(rawData.map((d) => d.broker))]
 
-        if (!stats || stats.length === 0) {
-            rec.textContent = 'No data available for recommendation.';
-            return;
-        }
+    const traces = brokers.map((broker) => {
+      const brokerData = rawData.filter((d) => d.broker === broker)
+      return {
+        x: brokerData.map((d) => d.spread_points),
+        type: 'histogram',
+        name: getBrokerShortName(broker),
+        opacity: 0.7,
+        marker: { color: getBrokerColor(broker) }
+      }
+    })
 
-        const best = stats.reduce((a, b) => a.avg < b.avg ? a : b);
-        const worst = stats.reduce((a, b) => a.avg > b.avg ? a : b);
-        const savings = (worst.avg - best.avg).toFixed(1);
+    const layout = {
+      xaxis: { title: 'Spread (Points)' },
+      yaxis: { title: 'Frequency' },
+      barmode: 'overlay',
+      margin: { t: 20, r: 20 },
+      legend: { orientation: 'h', y: -0.15 }
+    }
 
-        rec.innerHTML = `
+    Plotly.newPlot('histogram', traces, layout, { responsive: true })
+  }
+
+  function updateRecommendation(stats) {
+    const rec = document.getElementById('recommendation')
+
+    if (!stats || stats.length === 0) {
+      rec.textContent = 'No data available for recommendation.'
+      return
+    }
+
+    const best = stats.reduce((a, b) => (a.avg < b.avg ? a : b))
+    const worst = stats.reduce((a, b) => (a.avg > b.avg ? a : b))
+    const savings = (worst.avg - best.avg).toFixed(1)
+
+    rec.innerHTML = `
             <strong>${best.broker}</strong> has the lowest average spread at
             <strong>${best.avg.toFixed(2)} points</strong>.
             Using ${best.broker} instead of ${worst.broker} could save you
             approximately <strong>${savings} points</strong> per trade on average.
-        `;
+        `
+  }
+
+  async function loadStats() {
+    const startDate = document.getElementById('startDate').value
+    const endDate = document.getElementById('endDate').value
+    const symbol = document.getElementById('symbol').value
+
+    try {
+      // Fetch stats
+      const statsResponse = await fetch(
+        `/api/stats?start=${startDate}&end=${endDate}&symbol=${symbol}`
+      )
+      const statsResult = await statsResponse.json()
+
+      // Fetch raw data for box plot and histogram
+      const historyResponse = await fetch(
+        `/api/history?start=${startDate}&end=${endDate}&symbol=${symbol}`
+      )
+      const historyResult = await historyResponse.json()
+
+      if (statsResult.success) {
+        renderStatsTable(statsResult.data)
+        updateRecommendation(statsResult.data)
+      }
+
+      if (historyResult.success) {
+        renderBoxPlot(statsResult.data, historyResult.data)
+        renderHistogram(historyResult.data)
+      }
+    } catch (error) {
+      console.error('Error fetching stats:', error)
     }
+  }
 
-    async function loadStats() {
-        const startDate = document.getElementById('startDate').value;
-        const endDate = document.getElementById('endDate').value;
-        const symbol = document.getElementById('symbol').value;
+  document.getElementById('statsForm').addEventListener('submit', function (e) {
+    e.preventDefault()
+    loadStats()
+  })
 
-        try {
-            // Fetch stats
-            const statsResponse = await fetch(`/api/stats?start=${startDate}&end=${endDate}&symbol=${symbol}`);
-            const statsResult = await statsResponse.json();
+  // Initialize
+  async function init() {
+    await loadBrokerMeta()
+    setDefaultDates()
+    loadStats()
+  }
 
-            // Fetch raw data for box plot and histogram
-            const historyResponse = await fetch(`/api/history?start=${startDate}&end=${endDate}&symbol=${symbol}`);
-            const historyResult = await historyResponse.json();
-
-            if (statsResult.success) {
-                renderStatsTable(statsResult.data);
-                updateRecommendation(statsResult.data);
-            }
-
-            if (historyResult.success) {
-                renderBoxPlot(statsResult.data, historyResult.data);
-                renderHistogram(historyResult.data);
-            }
-
-        } catch (error) {
-            console.error('Error fetching stats:', error);
-        }
-    }
-
-    document.getElementById('statsForm').addEventListener('submit', function(e) {
-        e.preventDefault();
-        loadStats();
-    });
-
-    // Initialize
-    async function init() {
-        await loadBrokerMeta();
-        setDefaultDates();
-        loadStats();
-    }
-
-    init();
+  init()
 </script>
 {% endblock %}
