@@ -233,10 +233,12 @@
             hovertemplate: 'Broker: %{y}<br>Session: %{x}<br>Avg Spread: %{z:.2f} pts<extra></extra>'
         };
 
+        const themeLayout = getPlotlyThemeLayout();
         const layout = {
+            ...themeLayout,
             margin: { t: 20, r: 20 },
-            xaxis: { title: 'Trading Session' },
-            yaxis: { title: 'Broker' }
+            xaxis: { ...themeLayout.xaxis, title: 'Trading Session' },
+            yaxis: { ...themeLayout.yaxis, title: 'Broker' }
         };
 
         Plotly.newPlot('heatmap', [trace], layout, { responsive: true });
@@ -265,10 +267,12 @@
             };
         });
 
+        const themeLayout = getPlotlyThemeLayout();
         const layout = {
+            ...themeLayout,
             barmode: 'group',
-            xaxis: { title: 'Trading Session' },
-            yaxis: { title: 'Average Spread (Points)' },
+            xaxis: { ...themeLayout.xaxis, title: 'Trading Session' },
+            yaxis: { ...themeLayout.yaxis, title: 'Average Spread (Points)' },
             legend: { orientation: 'h', y: -0.2 },
             margin: { t: 20, r: 20 }
         };
