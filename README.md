@@ -215,6 +215,15 @@ spread_monitor/
 - Commission-free symbols are broker-specific (check your broker's fee schedule)
 - Point values for AUD accounts assume AUDUSD rate of ~0.645
 
+
+# Deployment on Windows Server
+
+- Terminal - Run as Administrator to allow firewall rule creation.
+`netsh advfirewall firewall add rule name="Flask App" dir=in action=allow protocol=tcp localport=5000`
+
+- Access the app at `http://<tailscale-ip>:5000`
+
+
 ## License
 
 MIT

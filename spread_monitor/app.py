@@ -449,4 +449,4 @@ def api_commissions():
 if __name__ == "__main__":
     port = config.get("flask_port", 5000)
     print(f"Starting Spread Monitor Dashboard on http://localhost:{port}")
-    app.run(debug=True, port=port)
+    app.run(host='0.0.0.0', debug=True, port=port)
