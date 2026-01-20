@@ -5,14 +5,49 @@ Handles connecting to MT5 terminals, fetching tick data, and calculating spreads
 """
 
 import logging
+import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
 import MetaTrader5 as mt5
 
 logger = logging.getLogger(__name__)
+
+# Global shutdown event for interrupting blocking operations
+_shutdown_event = threading.Event()
+
+
+def set_shutdown_flag():
+    """Set the shutdown flag to interrupt blocking operations."""
+    _shutdown_event.set()
+
+
+def is_shutdown_requested():
+    """Check if shutdown has been requested."""
+    return _shutdown_event.is_set()
+
+
+def interruptible_sleep(seconds: float, check_interval: float = 0.1) -> bool:
+    """
+    Sleep that can be interrupted by shutdown signal.
+
+    Args:
+        seconds: Total seconds to sleep
+        check_interval: How often to check for shutdown (default 100ms)
+
+    Returns:
+        True if sleep completed normally, False if interrupted by shutdown
+    """
+    elapsed = 0.0
+    while elapsed < seconds:
+        if _shutdown_event.is_set():
+            return False
+        sleep_time = min(check_interval, seconds - elapsed)
+        time.sleep(sleep_time)
+        elapsed += sleep_time
+    return True
 
 
 @dataclass
@@ -24,6 +59,11 @@ class BrokerConfig:
     password: str
     path: str
     symbol_suffix: str = ""
+    symbol_suffix_overrides: Dict[str, str] = field(default_factory=dict)
+
+    def get_symbol_suffix(self, symbol: str) -> str:
+        """Get the suffix for a specific symbol, checking overrides first."""
+        return self.symbol_suffix_overrides.get(symbol, self.symbol_suffix)
 
 
 @dataclass
@@ -63,6 +103,11 @@ class MT5Connector:
             True if connection successful, False otherwise
         """
         for attempt in range(1, self.retry_attempts + 1):
+            # Check for shutdown request
+            if is_shutdown_requested():
+                logger.info(f"[{broker.name}] Shutdown requested, aborting connection")
+                return False
+
             try:
                 # Shutdown any existing connection first
                 mt5.shutdown()
@@ -80,7 +125,9 @@ class MT5Connector:
                         f"failed: {error}"
                     )
                     if attempt < self.retry_attempts:
-                        time.sleep(self.retry_delay)
+                        if not interruptible_sleep(self.retry_delay):
+                            logger.info(f"[{broker.name}] Shutdown requested during retry wait")
+                            return False
                     continue
 
                 # Verify connection
@@ -91,7 +138,9 @@ class MT5Connector:
                         f"{attempt}/{self.retry_attempts}"
                     )
                     if attempt < self.retry_attempts:
-                        time.sleep(self.retry_delay)
+                        if not interruptible_sleep(self.retry_delay):
+                            logger.info(f"[{broker.name}] Shutdown requested during retry wait")
+                            return False
                     continue
 
                 logger.info(
@@ -105,7 +154,9 @@ class MT5Connector:
                     f"[{broker.name}] Exception on attempt {attempt}/{self.retry_attempts}: {e}"
                 )
                 if attempt < self.retry_attempts:
-                    time.sleep(self.retry_delay)
+                    if not interruptible_sleep(self.retry_delay):
+                        logger.info(f"[{broker.name}] Shutdown requested during retry wait")
+                        return False
 
         logger.error(f"[{broker.name}] Failed to connect after {self.retry_attempts} attempts")
         return False
@@ -131,7 +182,7 @@ class MT5Connector:
         """
         try:
             # Apply broker-specific symbol suffix
-            broker_symbol = base_symbol + broker.symbol_suffix
+            broker_symbol = base_symbol + broker.get_symbol_suffix(base_symbol)
 
             # Get symbol info to check if it exists and get point value
             symbol_info = mt5.symbol_info(broker_symbol)
@@ -142,13 +193,15 @@ class MT5Connector:
             # Force symbol selection to refresh market data
             # First deselect, then reselect to clear any cached data
             mt5.symbol_select(broker_symbol, False)
-            time.sleep(0.1)
+            if not interruptible_sleep(0.1):
+                return None
             if not mt5.symbol_select(broker_symbol, True):
                 logger.error(f"[{broker.name}] Failed to select {broker_symbol}")
                 return None
 
             # Wait for fresh tick data to arrive
-            time.sleep(0.5)
+            if not interruptible_sleep(0.5):
+                return None
 
             # Get current tick using copy_ticks_from for fresh server data
             from datetime import timedelta
@@ -214,10 +267,15 @@ class MT5Connector:
 
         try:
             for symbol in symbols:
+                # Check for shutdown before each symbol
+                if is_shutdown_requested():
+                    logger.info(f"[{broker.name}] Shutdown requested, stopping symbol collection")
+                    break
+
                 spread_data = self.get_spread_data(broker, symbol)
                 if spread_data:
                     results.append(spread_data)
-                    broker_symbol = symbol + broker.symbol_suffix
+                    broker_symbol = symbol + broker.get_symbol_suffix(symbol)
                     logger.debug(
                         f"[{broker.name}] {broker_symbol}: Bid={spread_data.bid:.5f}, "
                         f"Ask={spread_data.ask:.5f}, Spread={spread_data.spread_points} pts"
@@ -245,6 +303,11 @@ class MT5Connector:
         all_results = []
 
         for broker in brokers:
+            # Check for shutdown before starting each broker
+            if is_shutdown_requested():
+                logger.info("Shutdown requested, stopping collection")
+                break
+
             logger.info(f"Collecting from {broker.name}...")
             results = self.collect_from_broker(broker, symbols)
             all_results.extend(results)
@@ -275,6 +338,7 @@ def load_brokers_from_config(config: Dict) -> List[BrokerConfig]:
             login=broker_data["login"],
             password=broker_data["password"],
             path=broker_data["path"],
-            symbol_suffix=broker_data.get("symbol_suffix", "")
+            symbol_suffix=broker_data.get("symbol_suffix", ""),
+            symbol_suffix_overrides=broker_data.get("symbol_suffix_overrides", {})
         ))
     return brokers

@@ -14,10 +14,12 @@
       "password": "your_password_here",
       "path": "C:/Program Files/Pepperstone MetaTrader 5/terminal64.exe",
       "symbol_suffix": ".a",
+      "symbol_suffix_overrides": {},
       "website": "pepperstone.com",
       "commission_per_lot": 7.00,
       "commission_currency": "AUD",
-      "commission_free_symbols": [ "XAU", "XAG", "XPTUSD", "XPDUSD", "XBRUSD", "XTIUSD", "XNGUSD", "US500", "US30", "USTEC", "UK100", "GER40", "AUS200", "JPN225", "HK50", "EUSTX50", "FRA40", "CHINA50" ]
+      "commission_free_symbols": [ "XAU", "XAG", "XPTUSD", "XPDUSD", "XBRUSD", "XTIUSD", "XNGUSD", "US500", "US30", "USTEC", "UK100", "GER40", "AUS200", "JPN225", "HK50", "EUSTX50", "FRA40", "CHINA50" ],
+      "_comment_suffix_overrides": "Use symbol_suffix_overrides for brokers with inconsistent suffixes, e.g. {\"EURUSD\": \".i\", \"GBPUSD\": \".i\"}"
     },
     {
       "name": "FusionMarkets Zero",

@@ -16,6 +16,7 @@ import logging
 import os
 import signal
 import sys
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -23,11 +24,12 @@ from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
 from utils.data_utils import save_to_csv
-from utils.mt5_connector import MT5Connector, load_brokers_from_config
+from utils.mt5_connector import MT5Connector, load_brokers_from_config, set_shutdown_flag
 from utils.session_utils import is_market_open
 
-# Global scheduler for signal handling
+# Global scheduler and shutdown event for signal handling
 scheduler = None
+shutdown_event = threading.Event()
 
 
 def setup_logging(log_dir: str, level: int = logging.INFO) -> None:
@@ -150,6 +152,11 @@ def signal_handler(signum, frame):
     """Handle shutdown signals gracefully."""
     logger = logging.getLogger(__name__)
     logger.info("Shutdown signal received, stopping collector...")
+
+    # Set shutdown flag to interrupt blocking operations
+    global shutdown_event
+    shutdown_event.set()
+    set_shutdown_flag()
 
     global scheduler
     if scheduler:

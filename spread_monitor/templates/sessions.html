@@ -35,7 +35,7 @@
             <div class="col-md-3">
                 <label for="symbol" class="form-label">Symbol</label>
                 <select class="form-select" id="symbol">
-                    <option value="XAUUSD" selected>XAUUSD</option>
+                    <!-- Populated dynamically from config -->
                 </select>
             </div>
             <div class="col-md-3">
@@ -120,6 +120,26 @@
 <script>
     let brokerMeta = {};
     const sessionOrder = ['Sydney', 'London', 'Overlap', 'NewYork'];
+
+    async function loadConfig() {
+        try {
+            const response = await fetch('/api/config');
+            const result = await response.json();
+            if (result.success) {
+                populateSymbols(result.data.symbols || ['XAUUSD']);
+            }
+        } catch (error) {
+            console.error('Error fetching config:', error);
+            populateSymbols(['XAUUSD']);
+        }
+    }
+
+    function populateSymbols(symbols) {
+        const select = document.getElementById('symbol');
+        select.innerHTML = symbols.map((s, i) =>
+            `<option value="${s}"${i === 0 ? ' selected' : ''}>${s}</option>`
+        ).join('');
+    }
     const sessionColors = {
         'Sydney': '#6f42c1',
         'London': '#0d6efd',
@@ -392,7 +412,7 @@
 
     // Initialize
     async function init() {
-        await loadBrokerMeta();
+        await Promise.all([loadConfig(), loadBrokerMeta()]);
         setDefaultDates();
         loadSessionData();
     }

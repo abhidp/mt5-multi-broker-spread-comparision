@@ -44,7 +44,7 @@ endblock %} {% block extra_css %}
       <div class="col-md-3">
         <label for="symbol" class="form-label">Symbol</label>
         <select class="form-select" id="symbol">
-          <option value="XAUUSD" selected>XAUUSD</option>
+          <!-- Populated dynamically from config -->
         </select>
       </div>
       <div class="col-md-3">
@@ -172,6 +172,26 @@ endblock %} {% block extra_css %}
   let brokerMeta = {}
   let statsData = []
   let statsSort = { column: 'avg', direction: 'asc' }
+
+  async function loadConfig() {
+    try {
+      const response = await fetch('/api/config')
+      const result = await response.json()
+      if (result.success) {
+        populateSymbols(result.data.symbols || ['XAUUSD'])
+      }
+    } catch (error) {
+      console.error('Error fetching config:', error)
+      populateSymbols(['XAUUSD'])
+    }
+  }
+
+  function populateSymbols(symbols) {
+    const select = document.getElementById('symbol')
+    select.innerHTML = symbols.map((s, i) =>
+      `<option value="${s}"${i === 0 ? ' selected' : ''}>${s}</option>`
+    ).join('')
+  }
 
   function exportToExcel() {
     if (!statsData || statsData.length === 0) {
@@ -460,7 +480,7 @@ endblock %} {% block extra_css %}
 
   // Initialize
   async function init() {
-    await loadBrokerMeta()
+    await Promise.all([loadConfig(), loadBrokerMeta()])
     setDefaultDates()
     loadStats()
   }
