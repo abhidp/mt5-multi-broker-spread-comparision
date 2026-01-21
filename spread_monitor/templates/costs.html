@@ -41,6 +41,52 @@ endblock %} {% block extra_css %}
     background-color: #0d6efd;
     color: white;
   }
+  /* Symbol multi-select styles */
+  .symbol-selector {
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.375rem;
+    padding: 0.5rem;
+    background: var(--bs-body-bg);
+    max-height: 200px;
+    overflow-y: auto;
+  }
+  .symbol-checkbox {
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    cursor: pointer;
+  }
+  .symbol-checkbox:hover {
+    background-color: var(--hover-bg);
+  }
+  .symbol-checkbox input {
+    margin-right: 0.5rem;
+  }
+  .preset-btn {
+    font-size: 0.75rem;
+    padding: 0.2rem 0.5rem;
+  }
+  .selected-count {
+    font-size: 0.8rem;
+    color: var(--bs-secondary);
+  }
+  /* Expandable breakdown row */
+  .breakdown-row {
+    display: none;
+  }
+  .breakdown-row.show {
+    display: table-row;
+  }
+  .breakdown-table {
+    font-size: 0.85rem;
+    margin: 0;
+  }
+  .breakdown-table td {
+    padding: 0.25rem 0.5rem;
+  }
+  .expand-btn {
+    cursor: pointer;
+    user-select: none;
+  }
 </style>
 {% endblock %} {% block content %}
 <h2 class="mb-4">Trading Costs Calculator</h2>
@@ -60,22 +106,30 @@ endblock %} {% block extra_css %}
           <option value="10.0">10.0</option>
         </select>
       </div>
-      <div class="col-md-2">
-        <label for="symbol" class="form-label">Symbol</label>
-        <select class="form-select" id="symbol">
-          <!-- Populated dynamically from config -->
-        </select>
-      </div>
       <div class="col-md-3">
+        <label class="form-label d-flex justify-content-between align-items-center">
+          <span>Symbols</span>
+          <span class="selected-count" id="selectedCount">0 selected</span>
+        </label>
+        <div class="symbol-selector" id="symbolSelector">
+          <!-- Populated dynamically from config -->
+        </div>
+        <div class="mt-1">
+          <button type="button" class="btn btn-outline-secondary preset-btn" onclick="selectAllSymbols()">All</button>
+          <button type="button" class="btn btn-outline-secondary preset-btn" onclick="selectForexOnly()">Forex Only</button>
+          <button type="button" class="btn btn-outline-secondary preset-btn" onclick="clearSymbols()">Clear</button>
+        </div>
+      </div>
+      <div class="col-md-2">
         <label for="startDate" class="form-label">Start Date</label>
         <input type="date" class="form-control" id="startDate" required />
       </div>
-      <div class="col-md-3">
+      <div class="col-md-2">
         <label for="endDate" class="form-label">End Date</label>
         <input type="date" class="form-control" id="endDate" required />
       </div>
-      <div class="col-md-2">
-        <button type="submit" class="btn btn-primary w-100">Calculate</button>
+      <div class="col-md-3">
+        <button type="submit" class="btn btn-primary w-100">Calculate Basket Costs</button>
       </div>
     </form>
   </div>
@@ -227,28 +281,67 @@ endblock %} {% block extra_css %}
   let savingsData = null
   let costsSort = { column: 'total_cost', direction: 'asc' }
   let currentLotSize = 1.0
-  let currentSymbol = 'XAUUSD'
+  let currentSymbols = ['XAUUSD']
+  let allSymbols = []
+  let isBasketMode = false
   let currencySymbol = 'A$'
   let currencyCode = 'AUD'
+
+  // Forex symbols (no gold/commodities/indices)
+  const FOREX_SYMBOLS = ['EURUSD', 'GBPUSD', 'USDJPY', 'AUDUSD', 'USDCAD', 'NZDUSD', 'USDCHF']
 
   async function loadConfig() {
     try {
       const response = await fetch('/api/config')
       const result = await response.json()
       if (result.success) {
-        populateSymbols(result.data.symbols || ['XAUUSD'])
+        allSymbols = result.data.symbols || ['XAUUSD']
+        populateSymbols(allSymbols)
+        // Select all by default
+        selectAllSymbols()
       }
     } catch (error) {
       console.error('Error fetching config:', error)
-      populateSymbols(['XAUUSD'])
+      allSymbols = ['XAUUSD']
+      populateSymbols(allSymbols)
     }
   }
 
   function populateSymbols(symbols) {
-    const select = document.getElementById('symbol')
-    select.innerHTML = symbols.map((s, i) =>
-      `<option value="${s}"${i === 0 ? ' selected' : ''}>${s}</option>`
+    const container = document.getElementById('symbolSelector')
+    container.innerHTML = symbols.map(s =>
+      `<label class="symbol-checkbox d-block">
+        <input type="checkbox" value="${s}" onchange="updateSelectedCount()"> ${s}
+      </label>`
     ).join('')
+  }
+
+  function getSelectedSymbols() {
+    const checkboxes = document.querySelectorAll('#symbolSelector input[type="checkbox"]:checked')
+    return Array.from(checkboxes).map(cb => cb.value)
+  }
+
+  function updateSelectedCount() {
+    const selected = getSelectedSymbols()
+    const countEl = document.getElementById('selectedCount')
+    countEl.textContent = `${selected.length} selected`
+  }
+
+  function selectAllSymbols() {
+    document.querySelectorAll('#symbolSelector input[type="checkbox"]').forEach(cb => cb.checked = true)
+    updateSelectedCount()
+  }
+
+  function selectForexOnly() {
+    document.querySelectorAll('#symbolSelector input[type="checkbox"]').forEach(cb => {
+      cb.checked = FOREX_SYMBOLS.includes(cb.value)
+    })
+    updateSelectedCount()
+  }
+
+  function clearSymbols() {
+    document.querySelectorAll('#symbolSelector input[type="checkbox"]').forEach(cb => cb.checked = false)
+    updateSelectedCount()
   }
 
   function getBrokerLogo(brokerName) {
@@ -308,10 +401,11 @@ endblock %} {% block extra_css %}
 
   function renderCostsTable(costs) {
     const tbody = document.querySelector('#costsTable tbody')
+    const thead = document.querySelector('#costsTable thead tr')
 
     if (!costs || costs.length === 0) {
       tbody.innerHTML =
-        '<tr><td colspan="5" class="text-center text-muted">No data available.</td></tr>'
+        '<tr><td colspan="6" class="text-center text-muted">No data available.</td></tr>'
       document.getElementById('exportBtn').disabled = true
       return
     }
@@ -320,10 +414,50 @@ endblock %} {% block extra_css %}
     costsData = costs
     document.getElementById('exportBtn').disabled = false
 
+    // Update table header based on mode
+    if (isBasketMode) {
+      thead.innerHTML = `
+        <th class="sortable-header" onclick="sortCostsTable('broker')">
+          Broker <span class="sort-icon" data-col="broker">↕</span>
+        </th>
+        <th class="text-center">Symbols</th>
+        <th class="sortable-header text-end" onclick="sortCostsTable('total_spread_cost')">
+          Spread Cost <span class="sort-icon" data-col="total_spread_cost">↕</span>
+        </th>
+        <th class="sortable-header text-end" onclick="sortCostsTable('total_commission')">
+          Commission <span class="sort-icon" data-col="total_commission">↕</span>
+        </th>
+        <th class="sortable-header text-end" onclick="sortCostsTable('total_cost')">
+          Total Cost <span class="sort-icon active" data-col="total_cost">↑</span>
+        </th>
+      `
+    } else {
+      thead.innerHTML = `
+        <th class="sortable-header" onclick="sortCostsTable('broker')">
+          Broker <span class="sort-icon" data-col="broker">↕</span>
+        </th>
+        <th class="sortable-header text-end" onclick="sortCostsTable('avg_spread_points')">
+          Avg Spread <span class="sort-icon" data-col="avg_spread_points">↕</span>
+        </th>
+        <th class="sortable-header text-end" onclick="sortCostsTable('spread_cost')">
+          Spread Cost <span class="sort-icon" data-col="spread_cost">↕</span>
+        </th>
+        <th class="sortable-header text-end" onclick="sortCostsTable('commission')">
+          Commission <span class="sort-icon" data-col="commission">↕</span>
+        </th>
+        <th class="sortable-header text-end" onclick="sortCostsTable('total_cost')">
+          Total Cost <span class="sort-icon active" data-col="total_cost">↑</span>
+        </th>
+      `
+    }
+
+    // Determine sort column based on mode
+    const sortCol = isBasketMode && costsSort.column === 'spread_cost' ? 'total_spread_cost' : costsSort.column
+
     // Sort the data
     const sorted = [...costs].sort((a, b) => {
-      let valA = a[costsSort.column]
-      let valB = b[costsSort.column]
+      let valA = a[sortCol] ?? a['total_cost']
+      let valB = b[sortCol] ?? b['total_cost']
 
       if (typeof valA === 'string') {
         valA = valA.toLowerCase()
@@ -341,7 +475,7 @@ endblock %} {% block extra_css %}
     const highestCost = Math.max(...costs.map((c) => c.total_cost))
 
     let html = ''
-    sorted.forEach((cost) => {
+    sorted.forEach((cost, idx) => {
       const isLowest = cost.total_cost === lowestCost
       const isHighest = cost.total_cost === highestCost && costs.length > 1
 
@@ -349,25 +483,94 @@ endblock %} {% block extra_css %}
       if (isLowest) rowClass = 'table-success'
       else if (isHighest) rowClass = 'table-danger'
 
-      html += `
-                <tr class="${rowClass}">
-                    <td>
-                        <div class="broker-name-wrapper">
-                            ${getBrokerLogo(cost.broker)}
-                            <strong>${cost.broker}</strong>
-                            ${isLowest ? '<span class="badge bg-success ms-2">Best</span>' : ''}
-                            ${isHighest ? '<span class="badge bg-danger ms-2">Highest</span>' : ''}
-                        </div>
-                    </td>
-                    <td class="text-end">${cost.avg_spread_points.toFixed(1)} pts</td>
-                    <td class="text-end">${currencySymbol}${cost.spread_cost.toFixed(2)}</td>
-                    <td class="text-end">${currencySymbol}${cost.commission.toFixed(2)}</td>
-                    <td class="text-end fw-bold">${currencySymbol}${cost.total_cost.toFixed(2)}</td>
-                </tr>
-            `
+      if (isBasketMode) {
+        // Basket mode - show aggregate with expandable breakdown
+        const hasBreakdown = cost.breakdown && cost.breakdown.length > 0
+        html += `
+          <tr class="${rowClass}">
+            <td>
+              <div class="broker-name-wrapper">
+                ${getBrokerLogo(cost.broker)}
+                <strong>${cost.broker}</strong>
+                ${isLowest ? '<span class="badge bg-success ms-2">Best</span>' : ''}
+                ${isHighest ? '<span class="badge bg-danger ms-2">Highest</span>' : ''}
+              </div>
+            </td>
+            <td class="text-center">
+              ${hasBreakdown ? `<span class="expand-btn text-primary" onclick="toggleBreakdown(${idx})">
+                <span id="expandIcon${idx}">▶</span> ${cost.symbol_count}
+              </span>` : cost.symbol_count}
+            </td>
+            <td class="text-end">${currencySymbol}${cost.total_spread_cost.toFixed(2)}</td>
+            <td class="text-end">${currencySymbol}${cost.total_commission.toFixed(2)}</td>
+            <td class="text-end fw-bold">${currencySymbol}${cost.total_cost.toFixed(2)}</td>
+          </tr>
+        `
+        // Add hidden breakdown row
+        if (hasBreakdown) {
+          html += `
+            <tr class="breakdown-row" id="breakdown${idx}">
+              <td colspan="5" class="bg-light">
+                <table class="breakdown-table w-100">
+                  <thead>
+                    <tr class="text-muted">
+                      <th>Symbol</th>
+                      <th class="text-end">Avg Spread</th>
+                      <th class="text-end">Spread Cost</th>
+                      <th class="text-end">Commission</th>
+                      <th class="text-end">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${cost.breakdown.map(b => `
+                      <tr>
+                        <td>${b.symbol}</td>
+                        <td class="text-end">${b.avg_spread_points.toFixed(1)} pts</td>
+                        <td class="text-end">${currencySymbol}${b.spread_cost.toFixed(2)}</td>
+                        <td class="text-end">${currencySymbol}${b.commission.toFixed(2)}</td>
+                        <td class="text-end">${currencySymbol}${b.total.toFixed(2)}</td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              </td>
+            </tr>
+          `
+        }
+      } else {
+        // Single symbol mode - original layout
+        html += `
+          <tr class="${rowClass}">
+            <td>
+              <div class="broker-name-wrapper">
+                ${getBrokerLogo(cost.broker)}
+                <strong>${cost.broker}</strong>
+                ${isLowest ? '<span class="badge bg-success ms-2">Best</span>' : ''}
+                ${isHighest ? '<span class="badge bg-danger ms-2">Highest</span>' : ''}
+              </div>
+            </td>
+            <td class="text-end">${cost.avg_spread_points.toFixed(1)} pts</td>
+            <td class="text-end">${currencySymbol}${cost.spread_cost.toFixed(2)}</td>
+            <td class="text-end">${currencySymbol}${cost.commission.toFixed(2)}</td>
+            <td class="text-end fw-bold">${currencySymbol}${cost.total_cost.toFixed(2)}</td>
+          </tr>
+        `
+      }
     })
 
     tbody.innerHTML = html
+  }
+
+  function toggleBreakdown(idx) {
+    const row = document.getElementById(`breakdown${idx}`)
+    const icon = document.getElementById(`expandIcon${idx}`)
+    if (row.classList.contains('show')) {
+      row.classList.remove('show')
+      icon.textContent = '▶'
+    } else {
+      row.classList.add('show')
+      icon.textContent = '▼'
+    }
   }
 
   function renderSavings(savings) {
@@ -380,11 +583,25 @@ endblock %} {% block extra_css %}
       return
     }
 
+    // Handle both basket mode (savings_per_trade) and single mode (savings_per_lot)
+    const savingsAmount = savings.savings_per_trade ?? savings.savings_per_lot ?? 0
+
+    let savingsText, vsText
+    if (isBasketMode) {
+      // Basket mode: savings across all symbols in the basket
+      savingsText = `saved trading a basket of ${currentSymbols.length} symbols with <strong>${savings.best_broker}</strong>`
+      vsText = `vs ${savings.worst_broker} (${currencySymbol}${savings.worst_cost.toFixed(2)}/basket)`
+    } else {
+      // Single symbol mode: per lot
+      savingsText = `per lot saved by using <strong>${savings.best_broker}</strong>`
+      vsText = `vs ${savings.worst_broker} (${currencySymbol}${savings.worst_cost.toFixed(2)}/lot)`
+    }
+
     container.innerHTML = `
-            <span class="savings-amount me-3">${currencySymbol}${savings.savings_per_lot.toFixed(2)}</span>
-            <span class="me-3">per lot saved by using <strong>${savings.best_broker}</strong></span>
+            <span class="savings-amount me-3">${currencySymbol}${savingsAmount.toFixed(2)}</span>
+            <span class="me-3">${savingsText}</span>
             <span class="text-white-20 small">
-                vs ${savings.worst_broker} (${currencySymbol}${savings.worst_cost.toFixed(2)}/lot) ·
+                ${vsText} ·
                 <strong>${savings.savings_percent}%</strong> lower trading costs!
             </span>
         `
@@ -404,8 +621,16 @@ endblock %} {% block extra_css %}
     }
 
     const lotSize = parseFloat(document.getElementById('lotSize').value)
-    const monthlySavings = savingsData.savings_per_lot * tradesPerMonth
+    const savingsPerUnit = savingsData.savings_per_trade ?? savingsData.savings_per_lot ?? 0
+    const monthlySavings = savingsPerUnit * tradesPerMonth
     const yearlySavings = monthlySavings * 12
+
+    let explanationText
+    if (isBasketMode) {
+      explanationText = `Based on ${tradesPerMonth} basket trades/month × ${lotSize} lot per symbol × ${currencySymbol}${savingsPerUnit.toFixed(2)} savings per basket (${currentSymbols.length} symbols)`
+    } else {
+      explanationText = `Based on ${tradesPerMonth} trades/month × ${lotSize} lot × ${currencySymbol}${savingsPerUnit.toFixed(2)} savings per lot`
+    }
 
     container.innerHTML = `
             <div class="row">
@@ -427,7 +652,7 @@ endblock %} {% block extra_css %}
                 </div>
             </div>
             <p class="text-muted small mt-2 mb-0">
-                Based on ${tradesPerMonth} trades/month × ${lotSize} lot × ${currencySymbol}${savingsData.savings_per_lot.toFixed(2)} savings per lot
+                ${explanationText}
             </p>
         `
   }
@@ -441,26 +666,59 @@ endblock %} {% block extra_css %}
 
     // Sort by total cost for chart
     const sorted = [...costs].sort((a, b) => a.total_cost - b.total_cost)
-
     const brokers = sorted.map((c) => c.broker)
-
-    const spreadTrace = {
-      x: brokers,
-      y: sorted.map((c) => c.spread_cost),
-      name: 'Spread Cost',
-      type: 'bar',
-      marker: { color: '#0d6efd' }
-    }
-
-    const commissionTrace = {
-      x: brokers,
-      y: sorted.map((c) => c.commission),
-      name: 'Commission',
-      type: 'bar',
-      marker: { color: '#ffc107' }
-    }
-
     const themeLayout = getPlotlyThemeLayout()
+
+    let traces = []
+
+    if (isBasketMode && sorted[0].breakdown) {
+      // Basket mode: show each symbol as a separate stack segment
+      // Get all unique symbols from breakdown
+      const allSymbols = new Set()
+      sorted.forEach(broker => {
+        if (broker.breakdown) {
+          broker.breakdown.forEach(b => allSymbols.add(b.symbol))
+        }
+      })
+
+      // Color palette for symbols
+      const symbolColors = [
+        '#0d6efd', '#198754', '#ffc107', '#dc3545', '#6f42c1',
+        '#20c997', '#fd7e14', '#0dcaf0', '#6c757d', '#d63384'
+      ]
+
+      Array.from(allSymbols).forEach((symbol, idx) => {
+        traces.push({
+          x: brokers,
+          y: sorted.map(broker => {
+            const item = broker.breakdown?.find(b => b.symbol === symbol)
+            return item ? item.total : 0
+          }),
+          name: symbol,
+          type: 'bar',
+          marker: { color: symbolColors[idx % symbolColors.length] }
+        })
+      })
+    } else {
+      // Single symbol mode: spread vs commission
+      traces = [
+        {
+          x: brokers,
+          y: sorted.map((c) => c.spread_cost ?? c.total_spread_cost ?? 0),
+          name: 'Spread Cost',
+          type: 'bar',
+          marker: { color: '#0d6efd' }
+        },
+        {
+          x: brokers,
+          y: sorted.map((c) => c.commission ?? c.total_commission ?? 0),
+          name: 'Commission',
+          type: 'bar',
+          marker: { color: '#ffc107' }
+        }
+      ]
+    }
+
     const layout = {
       ...themeLayout,
       barmode: 'stack',
@@ -477,7 +735,7 @@ endblock %} {% block extra_css %}
       margin: { t: 20, r: 20 }
     }
 
-    Plotly.newPlot('stackedBarChart', [spreadTrace, commissionTrace], layout, {
+    Plotly.newPlot('stackedBarChart', traces, layout, {
       responsive: true
     })
   }
@@ -490,56 +748,104 @@ endblock %} {% block extra_css %}
 
     const startDate = document.getElementById('startDate').value
     const endDate = document.getElementById('endDate').value
-    const symbol = document.getElementById('symbol').value
     const lotSize = document.getElementById('lotSize').value
 
-    // Prepare data for export
-    const exportData = costsData.map((cost) => ({
-      'Broker': cost.broker,
-      'Avg Spread (pts)': cost.avg_spread_points.toFixed(2),
-      [`Spread Cost (${currencyCode})`]: cost.spread_cost.toFixed(2),
-      [`Commission (${currencyCode})`]: cost.commission.toFixed(2),
-      [`Total Cost (${currencyCode})`]: cost.total_cost.toFixed(2),
-      [`Commission/Lot (${currencyCode})`]: cost.commission_per_lot.toFixed(2)
-    }))
-
-    // Create workbook and worksheet
+    // Create workbook
     const wb = XLSX.utils.book_new()
-    const ws = XLSX.utils.json_to_sheet(exportData)
 
-    // Set column widths
-    ws['!cols'] = [
-      { wch: 25 }, // Broker
-      { wch: 15 }, // Avg Spread
-      { wch: 15 }, // Spread Cost
-      { wch: 15 }, // Commission
-      { wch: 15 }, // Total Cost
-      { wch: 18 } // Commission/Lot
-    ]
+    if (isBasketMode) {
+      // Basket mode: summary + per-symbol breakdown
+      const summaryData = costsData.map((cost) => ({
+        'Broker': cost.broker,
+        'Symbols': cost.symbol_count,
+        [`Spread Cost (${currencyCode})`]: cost.total_spread_cost.toFixed(2),
+        [`Commission (${currencyCode})`]: cost.total_commission.toFixed(2),
+        [`Total Cost (${currencyCode})`]: cost.total_cost.toFixed(2)
+      }))
 
-    // Add worksheet to workbook
-    XLSX.utils.book_append_sheet(wb, ws, 'Trading Costs')
+      const summaryWs = XLSX.utils.json_to_sheet(summaryData)
+      summaryWs['!cols'] = [
+        { wch: 25 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 15 }
+      ]
+      XLSX.utils.book_append_sheet(wb, summaryWs, 'Summary')
 
-    // Generate filename
-    const filename = `trading_costs_${symbol}_${lotSize}lot_${startDate}_to_${endDate}.xlsx`
+      // Add breakdown sheet
+      const breakdownData = []
+      costsData.forEach(cost => {
+        if (cost.breakdown) {
+          cost.breakdown.forEach(b => {
+            breakdownData.push({
+              'Broker': cost.broker,
+              'Symbol': b.symbol,
+              'Avg Spread (pts)': b.avg_spread_points.toFixed(2),
+              [`Spread Cost (${currencyCode})`]: b.spread_cost.toFixed(2),
+              [`Commission (${currencyCode})`]: b.commission.toFixed(2),
+              [`Total (${currencyCode})`]: b.total.toFixed(2)
+            })
+          })
+        }
+      })
 
-    // Download the file
-    XLSX.writeFile(wb, filename)
+      if (breakdownData.length > 0) {
+        const breakdownWs = XLSX.utils.json_to_sheet(breakdownData)
+        breakdownWs['!cols'] = [
+          { wch: 25 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }
+        ]
+        XLSX.utils.book_append_sheet(wb, breakdownWs, 'Breakdown')
+      }
+
+      const filename = `trading_costs_basket_${currentSymbols.length}symbols_${lotSize}lot_${startDate}_to_${endDate}.xlsx`
+      XLSX.writeFile(wb, filename)
+    } else {
+      // Single symbol mode
+      const exportData = costsData.map((cost) => ({
+        'Broker': cost.broker,
+        'Avg Spread (pts)': cost.avg_spread_points.toFixed(2),
+        [`Spread Cost (${currencyCode})`]: cost.spread_cost.toFixed(2),
+        [`Commission (${currencyCode})`]: cost.commission.toFixed(2),
+        [`Total Cost (${currencyCode})`]: cost.total_cost.toFixed(2),
+        [`Commission/Lot (${currencyCode})`]: cost.commission_per_lot.toFixed(2)
+      }))
+
+      const ws = XLSX.utils.json_to_sheet(exportData)
+      ws['!cols'] = [
+        { wch: 25 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 18 }
+      ]
+      XLSX.utils.book_append_sheet(wb, ws, 'Trading Costs')
+
+      const symbol = currentSymbols[0] || 'unknown'
+      const filename = `trading_costs_${symbol}_${lotSize}lot_${startDate}_to_${endDate}.xlsx`
+      XLSX.writeFile(wb, filename)
+    }
   }
 
   async function loadTradingCosts() {
     const startDate = document.getElementById('startDate').value
     const endDate = document.getElementById('endDate').value
-    const symbol = document.getElementById('symbol').value
     const lotSize = document.getElementById('lotSize').value
+    const selectedSymbols = getSelectedSymbols()
+
+    if (selectedSymbols.length === 0) {
+      alert('Please select at least one symbol')
+      return
+    }
 
     currentLotSize = parseFloat(lotSize)
-    currentSymbol = symbol
+    currentSymbols = selectedSymbols
+    isBasketMode = selectedSymbols.length > 1
 
     try {
-      const response = await fetch(
-        `/api/trading-costs?start=${startDate}&end=${endDate}&symbol=${symbol}&lot_size=${lotSize}`
-      )
+      // Build API URL based on mode
+      let apiUrl
+      if (isBasketMode) {
+        // Multi-symbol: use symbols param (comma-separated)
+        apiUrl = `/api/trading-costs?start=${startDate}&end=${endDate}&symbols=${selectedSymbols.join(',')}&lot_size=${lotSize}`
+      } else {
+        // Single symbol: use symbol param for backward compatibility
+        apiUrl = `/api/trading-costs?start=${startDate}&end=${endDate}&symbol=${selectedSymbols[0]}&lot_size=${lotSize}`
+      }
+
+      const response = await fetch(apiUrl)
       const result = await response.json()
 
       if (result.success) {
@@ -554,10 +860,18 @@ endblock %} {% block extra_css %}
         renderStackedBarChart(result.data)
 
         // Update cost info
-        document.getElementById('costInfo').innerHTML = `
-                    <strong>Note:</strong> Point value for ${symbol} = ${currencySymbol}${result.point_value.toFixed(2)} per point per standard lot.
-                    All costs in ${currencyCode}. Calculated for ${lotSize} lot(s).
-                `
+        if (isBasketMode) {
+          document.getElementById('costInfo').innerHTML = `
+            <strong>Note:</strong> Basket analysis for ${selectedSymbols.length} symbols (${selectedSymbols.join(', ')}).
+            All costs in ${currencyCode}. Calculated for ${lotSize} lot(s) per symbol.
+          `
+        } else {
+          const symbol = selectedSymbols[0]
+          document.getElementById('costInfo').innerHTML = `
+            <strong>Note:</strong> Point value for ${symbol} = ${currencySymbol}${result.point_value?.toFixed(2) ?? 'N/A'} per point per standard lot.
+            All costs in ${currencyCode}. Calculated for ${lotSize} lot(s).
+          `
+        }
       } else {
         console.error('Error:', result.error)
       }

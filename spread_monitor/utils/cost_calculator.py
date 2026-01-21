@@ -268,3 +268,132 @@ def get_savings_info(costs: List[Dict]) -> Optional[Dict]:
         "savings_per_lot": savings_per_lot,
         "savings_percent": savings_percent
     }
+
+
+def calculate_basket_costs(
+    symbols: List[str],
+    symbol_broker_stats: Dict[str, List[Dict]],
+    broker_commissions: Dict[str, Dict],
+    lot_size: float = 1.0
+) -> List[Dict]:
+    """
+    Calculate trading costs across a basket of symbols for all brokers.
+
+    Args:
+        symbols: List of symbols in the basket
+        symbol_broker_stats: Dict mapping symbol -> list of broker stats
+            Each broker stat must include 'broker' and 'avg' keys
+        broker_commissions: Dict mapping broker name to commission info:
+            - commission_per_lot: float
+            - commission_free_symbols: List[str] (optional)
+        lot_size: Trade size in lots (same for all symbols)
+
+    Returns:
+        List of dicts with aggregated costs per broker, sorted by total_cost
+    """
+    # Collect all unique brokers from the data
+    all_brokers = set()
+    for symbol in symbols:
+        for stat in symbol_broker_stats.get(symbol, []):
+            all_brokers.add(stat.get("broker"))
+
+    results = []
+
+    for broker_name in all_brokers:
+        breakdown = []
+        total_spread_cost = 0.0
+        total_commission = 0.0
+        symbols_with_data = 0
+
+        for symbol in symbols:
+            # Find this broker's stats for this symbol
+            broker_stat = None
+            for stat in symbol_broker_stats.get(symbol, []):
+                if stat.get("broker") == broker_name:
+                    broker_stat = stat
+                    break
+
+            if broker_stat is None:
+                # Broker has no data for this symbol - skip it
+                continue
+
+            symbols_with_data += 1
+            avg_spread = broker_stat.get("avg", 0)
+            point_value = get_point_value(symbol)
+
+            # Get commission info for this broker
+            commission_info = broker_commissions.get(broker_name, {})
+            if isinstance(commission_info, dict):
+                base_commission = commission_info.get("commission_per_lot", 0)
+                commission_free_list = commission_info.get("commission_free_symbols", [])
+            else:
+                base_commission = commission_info
+                commission_free_list = []
+
+            # Check if this symbol is commission-free for this broker
+            if is_commission_free(symbol, commission_free_list):
+                commission_per_lot = 0
+            else:
+                commission_per_lot = base_commission
+
+            # Calculate costs for this symbol
+            spread_cost = calculate_spread_cost(avg_spread, lot_size, point_value)
+            commission_cost = calculate_commission_cost(commission_per_lot, lot_size)
+            symbol_total = spread_cost + commission_cost
+
+            breakdown.append({
+                "symbol": symbol,
+                "avg_spread_points": round(avg_spread, 2),
+                "spread_cost": round(spread_cost, 2),
+                "commission": round(commission_cost, 2),
+                "total": round(symbol_total, 2),
+                "point_value": point_value
+            })
+
+            total_spread_cost += spread_cost
+            total_commission += commission_cost
+
+        # Only include broker if they have data for at least one symbol
+        if symbols_with_data > 0:
+            results.append({
+                "broker": broker_name,
+                "symbol_count": symbols_with_data,
+                "total_spread_cost": round(total_spread_cost, 2),
+                "total_commission": round(total_commission, 2),
+                "total_cost": round(total_spread_cost + total_commission, 2),
+                "breakdown": breakdown
+            })
+
+    # Sort by total cost
+    results.sort(key=lambda x: x["total_cost"])
+
+    return results
+
+
+def get_basket_savings_info(costs: List[Dict]) -> Optional[Dict]:
+    """
+    Calculate potential savings information for basket costs.
+
+    Args:
+        costs: List of basket trading cost dictionaries (sorted by total_cost)
+
+    Returns:
+        Dictionary with savings information or None if insufficient data
+    """
+    if len(costs) < 2:
+        return None
+
+    best = costs[0]
+    worst = costs[-1]
+
+    savings_per_trade = round(worst["total_cost"] - best["total_cost"], 2)
+    savings_percent = round((savings_per_trade / worst["total_cost"]) * 100, 1) if worst["total_cost"] > 0 else 0
+
+    return {
+        "best_broker": best["broker"],
+        "worst_broker": worst["broker"],
+        "best_cost": best["total_cost"],
+        "worst_cost": worst["total_cost"],
+        "savings_per_trade": savings_per_trade,
+        "savings_percent": savings_percent
+    }

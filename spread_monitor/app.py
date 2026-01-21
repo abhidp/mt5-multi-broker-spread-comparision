@@ -18,7 +18,14 @@ import pandas as pd
 from flask import Flask, jsonify, render_template, request
 
 from utils.data_utils import CSV_COLUMNS, get_csv_filename, load_csv_data
-from utils.cost_calculator import calculate_trading_costs, get_point_value, get_savings_info, get_currency_info
+from utils.cost_calculator import (
+    calculate_trading_costs,
+    calculate_basket_costs,
+    get_point_value,
+    get_savings_info,
+    get_basket_savings_info,
+    get_currency_info
+)
 
 app = Flask(__name__)
 
@@ -128,10 +135,10 @@ def api_brokers():
 @app.route("/api/live")
 def api_live():
     """
-    Get current spread data (latest reading for each broker).
+    Get current spread data (latest reading for each broker-symbol combination).
 
     Returns:
-        JSON with latest spread per broker
+        JSON with latest spread per broker per symbol
     """
     try:
         # Get today's file
@@ -153,8 +160,8 @@ def api_live():
         df = pd.read_csv(csv_path)
         df["timestamp"] = pd.to_datetime(df["timestamp"])
 
-        # Get latest row for each broker
-        latest = df.sort_values("timestamp").groupby("broker").last().reset_index()
+        # Get latest row for each broker-symbol combination
+        latest = df.sort_values("timestamp").groupby(["broker", "symbol"]).last().reset_index()
 
         data = latest.to_dict(orient="records")
 
@@ -343,40 +350,36 @@ def api_trading_costs():
     Query params:
         start: Start date (YYYY-MM-DD)
         end: End date (YYYY-MM-DD)
-        symbol: Symbol to filter (default: XAUUSD)
+        symbol: Single symbol to filter (default: XAUUSD) - for backward compatibility
+        symbols: Comma-separated list of symbols for basket analysis
         lot_size: Lot size for calculation (default: 1.0)
 
     Returns:
         JSON with trading costs per broker
+        - For single symbol: original response format
+        - For multiple symbols: basket response with breakdown per symbol
     """
     try:
         start_str = request.args.get("start")
         end_str = request.args.get("end")
-        symbol = request.args.get("symbol", "XAUUSD")
         lot_size = float(request.args.get("lot_size", 1.0))
+
+        # Support both 'symbols' (comma-separated) and 'symbol' (single) params
+        symbols_param = request.args.get("symbols", "")
+        symbol_param = request.args.get("symbol", "")
+
+        # Parse symbols list
+        if symbols_param:
+            symbols = [s.strip() for s in symbols_param.split(",") if s.strip()]
+        elif symbol_param:
+            symbols = [symbol_param]
+        else:
+            symbols = ["XAUUSD"]  # Default
 
         start_date = datetime.strptime(start_str, "%Y-%m-%d") if start_str else None
         end_date = datetime.strptime(end_str, "%Y-%m-%d") if end_str else None
 
         df = load_csv_data(DATA_DIR, start_date, end_date)
-
-        if df.empty:
-            return jsonify({
-                "success": True,
-                "data": [],
-                "savings": None,
-                "lot_size": lot_size,
-                "symbol": symbol
-            })
-
-        # Filter by symbol if specified
-        if symbol:
-            df = df[df["symbol"] == symbol]
-
-        # Calculate average spread per broker
-        broker_stats = df.groupby("broker")["spread_points"].agg([
-            ("avg", "mean")
-        ]).reset_index().to_dict(orient="records")
 
         # Get commission data from config (including commission-free symbols)
         broker_commissions = {}
@@ -386,27 +389,94 @@ def api_trading_costs():
                 "commission_free_symbols": broker.get("commission_free_symbols", [])
             }
 
-        # Calculate trading costs
-        costs = calculate_trading_costs(
-            broker_stats=broker_stats,
-            broker_commissions=broker_commissions,
-            symbol=symbol,
-            lot_size=lot_size
-        )
-
-        # Get savings information
-        savings = get_savings_info(costs)
-
         currency = get_currency_info()
-        return jsonify({
-            "success": True,
-            "data": costs,
-            "savings": savings,
-            "lot_size": lot_size,
-            "symbol": symbol,
-            "point_value": get_point_value(symbol),
-            "currency": currency
-        })
+
+        # Single symbol - use original logic for backward compatibility
+        if len(symbols) == 1:
+            symbol = symbols[0]
+
+            if df.empty:
+                return jsonify({
+                    "success": True,
+                    "data": [],
+                    "savings": None,
+                    "lot_size": lot_size,
+                    "symbol": symbol
+                })
+
+            # Filter by symbol
+            df_symbol = df[df["symbol"] == symbol]
+
+            # Calculate average spread per broker
+            broker_stats = df_symbol.groupby("broker")["spread_points"].agg([
+                ("avg", "mean")
+            ]).reset_index().to_dict(orient="records")
+
+            # Calculate trading costs
+            costs = calculate_trading_costs(
+                broker_stats=broker_stats,
+                broker_commissions=broker_commissions,
+                symbol=symbol,
+                lot_size=lot_size
+            )
+
+            # Get savings information
+            savings = get_savings_info(costs)
+
+            return jsonify({
+                "success": True,
+                "data": costs,
+                "savings": savings,
+                "lot_size": lot_size,
+                "symbol": symbol,
+                "point_value": get_point_value(symbol),
+                "currency": currency
+            })
+
+        # Multiple symbols - basket analysis
+        else:
+            if df.empty:
+                return jsonify({
+                    "success": True,
+                    "data": [],
+                    "savings": None,
+                    "lot_size": lot_size,
+                    "symbols": symbols,
+                    "is_basket": True
+                })
+
+            # Calculate broker stats for each symbol
+            symbol_broker_stats = {}
+            for symbol in symbols:
+                df_symbol = df[df["symbol"] == symbol]
+                if not df_symbol.empty:
+                    broker_stats = df_symbol.groupby("broker")["spread_points"].agg([
+                        ("avg", "mean")
+                    ]).reset_index().to_dict(orient="records")
+                    symbol_broker_stats[symbol] = broker_stats
+                else:
+                    symbol_broker_stats[symbol] = []
+
+            # Calculate basket costs
+            costs = calculate_basket_costs(
+                symbols=symbols,
+                symbol_broker_stats=symbol_broker_stats,
+                broker_commissions=broker_commissions,
+                lot_size=lot_size
+            )
+
+            # Get savings information
+            savings = get_basket_savings_info(costs)
+
+            return jsonify({
+                "success": True,
+                "data": costs,
+                "savings": savings,
+                "lot_size": lot_size,
+                "symbols": symbols,
+                "is_basket": True,
+                "currency": currency
+            })
 
     except Exception as e:
         return jsonify({

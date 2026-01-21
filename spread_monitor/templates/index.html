@@ -52,7 +52,7 @@
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
-    <h2>Live Spreads</h2>
+    <h2>Live Spreads for <span id="pageSymbol">--</span></h2>
     <div class="d-flex align-items-center gap-2">
         <span class="last-updated" id="lastUpdated">Last updated: --</span>
         <button class="btn btn-sm btn-outline-primary" id="refreshBtn" onclick="refreshData()">
@@ -66,6 +66,13 @@
 <div class="card mb-4">
     <div class="card-body py-2">
         <div class="row align-items-center">
+            <div class="col-auto">
+                <div class="d-flex align-items-center gap-2">
+                    <label class="form-label mb-0 small fw-bold">Symbol:</label>
+                    <select class="form-select form-select-sm" id="symbolFilter" style="width: auto;" onchange="applyFilter()">
+                    </select>
+                </div>
+            </div>
             <div class="col-auto" id="sortDropdownContainer">
                 <div class="d-flex align-items-center gap-2">
                     <label class="form-label mb-0 small fw-bold">Sort:</label>
@@ -118,20 +125,16 @@
                         Broker/Account
                         <span class="sort-icon" data-col="broker">↕</span>
                     </th>
-                    <th class="sortable-header" onclick="sortTable('symbol')">
-                        Symbol
-                        <span class="sort-icon" data-col="symbol">↕</span>
-                    </th>
-                    <th class="sortable-header text-end" onclick="sortTable('spread_points')">
+                    <th class="sortable-header text-center" onclick="sortTable('spread_points')">
                         Spread (pts)
                         <span class="sort-icon" data-col="spread_points">↕</span>
                     </th>
-                    <th class="sortable-header text-end" onclick="sortTable('spread')">
+                    <th class="sortable-header text-center" onclick="sortTable('spread')">
                         Spread (price)
                         <span class="sort-icon" data-col="spread">↕</span>
                     </th>
-                    <th class="text-end">Bid</th>
-                    <th class="text-end">Ask</th>
+                    <th class="text-center">Bid</th>
+                    <th class="text-center">Ask</th>
                 </tr>
             </thead>
             <tbody id="tableBody">
@@ -162,9 +165,74 @@
 <script>
     let liveData = [];
     let brokerMeta = {};
+    let allSymbols = [];
     let currentView = localStorage.getItem('spreadViewMode') || 'tile';
     let currentSort = localStorage.getItem('spreadSortMode') || 'spread-asc';
+    let currentSymbolFilter = localStorage.getItem('spreadSymbolFilter') || '';
     let tableSort = { column: 'spread_points', direction: 'asc' };
+
+    async function loadConfig() {
+        try {
+            const response = await fetch('/api/config');
+            const result = await response.json();
+            if (result.success) {
+                allSymbols = result.data.symbols || [];
+                populateSymbolFilter();
+            }
+        } catch (error) {
+            console.error('Error fetching config:', error);
+        }
+    }
+
+    function populateSymbolFilter() {
+        const select = document.getElementById('symbolFilter');
+        select.innerHTML = '';
+        allSymbols.forEach(symbol => {
+            const option = document.createElement('option');
+            option.value = symbol;
+            option.textContent = symbol;
+            select.appendChild(option);
+        });
+        // Default to first symbol if no filter set or invalid filter
+        if (!currentSymbolFilter || !allSymbols.includes(currentSymbolFilter)) {
+            currentSymbolFilter = allSymbols[0] || '';
+        }
+        select.value = currentSymbolFilter;
+    }
+
+    function applyFilter() {
+        currentSymbolFilter = document.getElementById('symbolFilter').value;
+        localStorage.setItem('spreadSymbolFilter', currentSymbolFilter);
+        updatePageTitle();
+        renderData();
+    }
+
+    function updatePageTitle() {
+        document.getElementById('pageSymbol').textContent = currentSymbolFilter || '--';
+    }
+
+    function getFilteredData() {
+        return liveData.filter(item => item.symbol === currentSymbolFilter);
+    }
+
+    function formatPrice(value, symbol) {
+        // Determine decimal places based on symbol
+        // JPY pairs: 3 decimals, Forex: 5 decimals, Gold/Commodities: 2 decimals
+        if (!symbol) return value;
+        const upperSymbol = symbol.toUpperCase();
+
+        if (upperSymbol.includes('JPY')) {
+            return value.toFixed(3);
+        } else if (upperSymbol.startsWith('XAU') || upperSymbol.startsWith('XAG') ||
+                   upperSymbol.startsWith('XPT') || upperSymbol.startsWith('XPD') ||
+                   upperSymbol.startsWith('XTI') || upperSymbol.startsWith('XBR') ||
+                   upperSymbol.startsWith('XNG')) {
+            return value.toFixed(2);
+        } else {
+            // Forex pairs - show 5 decimal places
+            return value.toFixed(5);
+        }
+    }
 
     function getBrokerLogo(brokerName, size = '') {
         const meta = brokerMeta[brokerName];
@@ -270,7 +338,7 @@
         if (!data || data.length === 0) {
             container.innerHTML = `
                 <div class="col-12 text-center py-5">
-                    <p class="text-muted">No spread data available. Make sure the collector is running.</p>
+                    <p class="text-muted">No spread data available for ${currentSymbolFilter}. Make sure the collector is running.</p>
                 </div>
             `;
             return;
@@ -301,16 +369,15 @@
                                     ${isHighest && !isLowest ? '<span class="badge bg-danger spread-badge">Highest</span>' : ''}
                                 </div>
                             </div>
-                            <p class="card-text text-muted mb-2 mt-1">${item.symbol}</p>
-                            <div class="spread-value">${item.spread.toFixed(2)}</div>
+                            <div class="spread-value mt-2">${formatPrice(item.spread, item.symbol)}</div>
                             <div class="spread-points">${item.spread_points} points</div>
                             <hr>
                             <div class="row small">
                                 <div class="col-6">
-                                    <span class="text-muted">Bid:</span> ${item.bid.toFixed(2)}
+                                    <span class="text-muted">Bid:</span> ${formatPrice(item.bid, item.symbol)}
                                 </div>
                                 <div class="col-6">
-                                    <span class="text-muted">Ask:</span> ${item.ask.toFixed(2)}
+                                    <span class="text-muted">Ask:</span> ${formatPrice(item.ask, item.symbol)}
                                 </div>
                             </div>
                         </div>
@@ -324,12 +391,13 @@
 
     function renderTable() {
         const tbody = document.getElementById('tableBody');
+        const filteredData = getFilteredData();
 
-        if (!liveData || liveData.length === 0) {
+        if (!filteredData || filteredData.length === 0) {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="6" class="text-center text-muted py-4">
-                        No spread data available. Make sure the collector is running.
+                    <td colspan="5" class="text-center text-muted py-4">
+                        No spread data available for ${currentSymbolFilter}. Make sure the collector is running.
                     </td>
                 </tr>
             `;
@@ -337,7 +405,7 @@
         }
 
         // Sort table data
-        const sorted = [...liveData].sort((a, b) => {
+        const sorted = [...filteredData].sort((a, b) => {
             let valA = a[tableSort.column];
             let valB = b[tableSort.column];
 
@@ -352,7 +420,7 @@
             return tableSort.direction === 'asc' ? valA - valB : valB - valA;
         });
 
-        const allSpreads = liveData.map(d => d.spread_points);
+        const allSpreads = filteredData.map(d => d.spread_points);
         const minSpread = Math.min(...allSpreads);
         const maxSpread = Math.max(...allSpreads);
 
@@ -374,11 +442,10 @@
                             ${isHighest && !isLowest ? '<span class="badge bg-danger ms-2 spread-badge">Highest</span>' : ''}
                         </div>
                     </td>
-                    <td>${item.symbol}</td>
-                    <td class="text-end fw-bold">${item.spread_points}</td>
-                    <td class="text-end">${item.spread.toFixed(2)}</td>
-                    <td class="text-end">${item.bid.toFixed(2)}</td>
-                    <td class="text-end">${item.ask.toFixed(2)}</td>
+                    <td class="text-center fw-bold">${item.spread_points}</td>
+                    <td class="text-center">${formatPrice(item.spread, item.symbol)}</td>
+                    <td class="text-center">${formatPrice(item.bid, item.symbol)}</td>
+                    <td class="text-center">${formatPrice(item.ask, item.symbol)}</td>
                 </tr>
             `;
         });
@@ -387,8 +454,9 @@
     }
 
     function renderData() {
+        const filteredData = getFilteredData();
         if (currentView === 'tile') {
-            renderTiles(liveData);
+            renderTiles(filteredData);
         } else {
             renderTable();
         }
@@ -449,8 +517,10 @@
 
     // Initialize
     async function init() {
-        await loadBrokerMeta();
+        await Promise.all([loadConfig(), loadBrokerMeta()]);
         document.getElementById('sortSelect').value = currentSort;
+        document.getElementById('symbolFilter').value = currentSymbolFilter;
+        updatePageTitle();
         setView(currentView);
         await refreshData();
     }
