@@ -389,6 +389,24 @@ def api_trading_costs():
                 "commission_free_symbols": broker.get("commission_free_symbols", [])
             }
 
+        # Virtual brokers: use another broker's spread data but with different commission
+        # These only appear on the costs page, not in spread data collection
+        virtual_brokers = [
+            {
+                "name": "Vantage RAW Premium",
+                "source_broker": "VantageMarkets Raw",  # Use spread data from this broker
+                "commission_per_lot": 2.00,  # A$1 per side = A$2 round trip
+                "commission_free_symbols": ["XAU", "XAG"]  # Same as regular Vantage
+            }
+        ]
+
+        # Add virtual broker commissions
+        for vb in virtual_brokers:
+            broker_commissions[vb["name"]] = {
+                "commission_per_lot": vb.get("commission_per_lot", 0),
+                "commission_free_symbols": vb.get("commission_free_symbols", [])
+            }
+
         currency = get_currency_info()
 
         # Single symbol - use original logic for backward compatibility
@@ -411,6 +429,18 @@ def api_trading_costs():
             broker_stats = df_symbol.groupby("broker")["spread_points"].agg([
                 ("avg", "mean")
             ]).reset_index().to_dict(orient="records")
+
+            # Add virtual brokers by cloning source broker's spread data
+            for vb in virtual_brokers:
+                source_stat = next(
+                    (s for s in broker_stats if s["broker"] == vb["source_broker"]),
+                    None
+                )
+                if source_stat:
+                    broker_stats.append({
+                        "broker": vb["name"],
+                        "avg": source_stat["avg"]
+                    })
 
             # Calculate trading costs
             costs = calculate_trading_costs(
@@ -453,6 +483,19 @@ def api_trading_costs():
                     broker_stats = df_symbol.groupby("broker")["spread_points"].agg([
                         ("avg", "mean")
                     ]).reset_index().to_dict(orient="records")
+
+                    # Add virtual brokers by cloning source broker's spread data
+                    for vb in virtual_brokers:
+                        source_stat = next(
+                            (s for s in broker_stats if s["broker"] == vb["source_broker"]),
+                            None
+                        )
+                        if source_stat:
+                            broker_stats.append({
+                                "broker": vb["name"],
+                                "avg": source_stat["avg"]
+                            })
+
                     symbol_broker_stats[symbol] = broker_stats
                 else:
                     symbol_broker_stats[symbol] = []
