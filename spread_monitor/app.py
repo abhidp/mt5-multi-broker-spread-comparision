@@ -45,6 +45,19 @@ def load_config():
 config = load_config()
 DATA_DIR = config.get("data_directory", "./data")
 
+# Virtual brokers: use another broker's spread data but with different commission
+# These only appear on the costs page, not in spread data collection
+VIRTUAL_BROKERS = [
+    {
+        "name": "Vantage RAW Premium",
+        "short_name": "VantagePremium",
+        "source_broker": "VantageMarkets Raw",  # Use spread data from this broker
+        "website": "vantagemarkets.com",  # Same website for logo
+        "commission_per_lot": 2.00,  # A$1 per side = A$2 round trip
+        "commission_free_symbols": ["XAU", "XAG"]  # Same as regular Vantage
+    }
+]
+
 
 # =============================================================================
 # Page Routes
@@ -106,6 +119,7 @@ def api_brokers():
     """
     Get broker metadata (names and websites for logos).
     Does not expose sensitive data like passwords.
+    Includes virtual brokers used only on costs page.
 
     Returns:
         JSON with broker name -> website mapping
@@ -118,6 +132,15 @@ def api_brokers():
                 "website": website,
                 "logo_url": f"https://t3.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://{website}&size=128" if website else "",
                 "short_name": broker.get("short_name", broker["name"])
+            }
+
+        # Add virtual brokers
+        for vb in VIRTUAL_BROKERS:
+            website = vb.get("website", "")
+            brokers[vb["name"]] = {
+                "website": website,
+                "logo_url": f"https://t3.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://{website}&size=128" if website else "",
+                "short_name": vb.get("short_name", vb["name"])
             }
 
         return jsonify({
@@ -389,19 +412,8 @@ def api_trading_costs():
                 "commission_free_symbols": broker.get("commission_free_symbols", [])
             }
 
-        # Virtual brokers: use another broker's spread data but with different commission
-        # These only appear on the costs page, not in spread data collection
-        virtual_brokers = [
-            {
-                "name": "Vantage RAW Premium",
-                "source_broker": "VantageMarkets Raw",  # Use spread data from this broker
-                "commission_per_lot": 2.00,  # A$1 per side = A$2 round trip
-                "commission_free_symbols": ["XAU", "XAG"]  # Same as regular Vantage
-            }
-        ]
-
         # Add virtual broker commissions
-        for vb in virtual_brokers:
+        for vb in VIRTUAL_BROKERS:
             broker_commissions[vb["name"]] = {
                 "commission_per_lot": vb.get("commission_per_lot", 0),
                 "commission_free_symbols": vb.get("commission_free_symbols", [])
@@ -431,7 +443,7 @@ def api_trading_costs():
             ]).reset_index().to_dict(orient="records")
 
             # Add virtual brokers by cloning source broker's spread data
-            for vb in virtual_brokers:
+            for vb in VIRTUAL_BROKERS:
                 source_stat = next(
                     (s for s in broker_stats if s["broker"] == vb["source_broker"]),
                     None
@@ -485,7 +497,7 @@ def api_trading_costs():
                     ]).reset_index().to_dict(orient="records")
 
                     # Add virtual brokers by cloning source broker's spread data
-                    for vb in virtual_brokers:
+                    for vb in VIRTUAL_BROKERS:
                         source_stat = next(
                             (s for s in broker_stats if s["broker"] == vb["source_broker"]),
                             None
