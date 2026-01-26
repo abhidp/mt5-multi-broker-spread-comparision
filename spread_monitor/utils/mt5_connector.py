@@ -60,10 +60,21 @@ class BrokerConfig:
     path: str
     symbol_suffix: str = ""
     symbol_suffix_overrides: Dict[str, str] = field(default_factory=dict)
+    symbol_name_overrides: Dict[str, str] = field(default_factory=dict)
 
     def get_symbol_suffix(self, symbol: str) -> str:
         """Get the suffix for a specific symbol, checking overrides first."""
         return self.symbol_suffix_overrides.get(symbol, self.symbol_suffix)
+
+    def get_broker_symbol(self, base_symbol: str) -> str:
+        """
+        Get the broker-specific symbol name.
+
+        Checks for complete name override first, otherwise applies suffix logic.
+        """
+        if base_symbol in self.symbol_name_overrides:
+            return self.symbol_name_overrides[base_symbol]
+        return base_symbol + self.get_symbol_suffix(base_symbol)
 
 
 @dataclass
@@ -181,8 +192,8 @@ class MT5Connector:
             SpreadData object if successful, None otherwise
         """
         try:
-            # Apply broker-specific symbol suffix
-            broker_symbol = base_symbol + broker.get_symbol_suffix(base_symbol)
+            # Get broker-specific symbol (handles name overrides and suffixes)
+            broker_symbol = broker.get_broker_symbol(base_symbol)
 
             # Get symbol info to check if it exists and get point value
             symbol_info = mt5.symbol_info(broker_symbol)
@@ -190,36 +201,33 @@ class MT5Connector:
                 logger.error(f"[{broker.name}] Symbol {broker_symbol} not found")
                 return None
 
-            # Force symbol selection to refresh market data
-            # First deselect, then reselect to clear any cached data
-            mt5.symbol_select(broker_symbol, False)
-            if not interruptible_sleep(0.1):
-                return None
+            # Ensure symbol is selected in Market Watch for live data
             if not mt5.symbol_select(broker_symbol, True):
                 logger.error(f"[{broker.name}] Failed to select {broker_symbol}")
                 return None
 
-            # Wait for fresh tick data to arrive
-            if not interruptible_sleep(0.5):
+            # Brief wait for symbol data to be ready
+            if not interruptible_sleep(0.2):
                 return None
 
-            # Get current tick using copy_ticks_from for fresh server data
-            from datetime import timedelta
-            ticks = mt5.copy_ticks_from(broker_symbol, datetime.now(timezone.utc), 1, mt5.COPY_TICKS_ALL)
+            # Get current tick using symbol_info_tick (most reliable for current bid/ask)
+            tick = mt5.symbol_info_tick(broker_symbol)
+            if tick is None:
+                logger.error(f"[{broker.name}] Could not get tick for {broker_symbol}")
+                return None
 
-            if ticks is None or len(ticks) == 0:
-                # Fallback to symbol_info_tick
-                tick = mt5.symbol_info_tick(broker_symbol)
-                if tick is None:
-                    logger.error(f"[{broker.name}] Could not get tick for {broker_symbol}")
-                    return None
-                bid = tick.bid
-                ask = tick.ask
-            else:
-                # Use the latest tick from server
-                latest_tick = ticks[-1]
-                bid = latest_tick['bid']
-                ask = latest_tick['ask']
+            bid = tick.bid
+            ask = tick.ask
+
+            # Validate tick data - bid and ask should be non-zero and ask >= bid
+            if bid <= 0 or ask <= 0 or ask < bid:
+                logger.error(f"[{broker.name}] Invalid tick data for {broker_symbol}: bid={bid}, ask={ask}")
+                return None
+
+            # Check for stale data - spread should be reasonable (less than 5% of price)
+            if ask - bid > bid * 0.05:
+                logger.warning(f"[{broker.name}] Unusually large spread for {broker_symbol}: bid={bid}, ask={ask}, spread={ask-bid}")
+                return None
 
             # Calculate spread with proper rounding based on symbol digits
             digits = symbol_info.digits
@@ -275,7 +283,7 @@ class MT5Connector:
                 spread_data = self.get_spread_data(broker, symbol)
                 if spread_data:
                     results.append(spread_data)
-                    broker_symbol = symbol + broker.get_symbol_suffix(symbol)
+                    broker_symbol = broker.get_broker_symbol(symbol)
                     logger.debug(
                         f"[{broker.name}] {broker_symbol}: Bid={spread_data.bid:.5f}, "
                         f"Ask={spread_data.ask:.5f}, Spread={spread_data.spread_points} pts"
@@ -339,6 +347,7 @@ def load_brokers_from_config(config: Dict) -> List[BrokerConfig]:
             password=broker_data["password"],
             path=broker_data["path"],
             symbol_suffix=broker_data.get("symbol_suffix", ""),
-            symbol_suffix_overrides=broker_data.get("symbol_suffix_overrides", {})
+            symbol_suffix_overrides=broker_data.get("symbol_suffix_overrides", {}),
+            symbol_name_overrides=broker_data.get("symbol_name_overrides", {})
         ))
     return brokers
