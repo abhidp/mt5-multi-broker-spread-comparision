@@ -64,6 +64,12 @@
           Full Range
         </button>
       </div>
+      <div class="btn-group btn-group-sm" role="group">
+        <button type="button" class="btn btn-outline-secondary active" id="zoom1d" onclick="setZoom(1)">1D</button>
+        <button type="button" class="btn btn-outline-secondary" id="zoom3d" onclick="setZoom(3)">3D</button>
+        <button type="button" class="btn btn-outline-secondary" id="zoom7d" onclick="setZoom(7)">7D</button>
+        <button type="button" class="btn btn-outline-secondary" id="zoomAll" onclick="setZoom(0)">All</button>
+      </div>
     </div>
   </div>
   <div class="card-body" style="position: relative">
@@ -105,6 +111,7 @@
   let chartData = null
   let currentYAxis = 'points'
   let scaleMode = 'auto' // 'auto' = 99th percentile cap, 'full' = show all
+  let zoomDays = 1 // 0 = show all, otherwise number of days visible
   let collectionInterval = 5 // Default, will be fetched from config
 
   async function loadConfig() {
@@ -165,6 +172,17 @@
     document
       .getElementById('scaleFull')
       .classList.toggle('active', mode === 'full')
+    if (chartData) {
+      renderChart(chartData)
+    }
+  }
+
+  function setZoom(days) {
+    zoomDays = days
+    document.getElementById('zoom1d').classList.toggle('active', days === 1)
+    document.getElementById('zoom3d').classList.toggle('active', days === 3)
+    document.getElementById('zoom7d').classList.toggle('active', days === 7)
+    document.getElementById('zoomAll').classList.toggle('active', days === 0)
     if (chartData) {
       renderChart(chartData)
     }
@@ -293,6 +311,16 @@
     const xMin = allTimestamps[0]
     const xMax = allTimestamps[allTimestamps.length - 1]
 
+    // Visible window: show last N days, or all if zoomDays === 0
+    let xRangeStart = xMin
+    if (zoomDays > 0) {
+      const maxDate = new Date(xMax)
+      const windowStart = new Date(maxDate.getTime() - zoomDays * 24 * 60 * 60 * 1000)
+      const windowStartStr = windowStart.toISOString().replace('T', ' ').slice(0, 19)
+      // Don't go before the data start
+      xRangeStart = windowStartStr > xMin ? windowStartStr : xMin
+    }
+
     const themeLayout = getPlotlyThemeLayout()
     const isDark =
       document.documentElement.getAttribute('data-bs-theme') === 'dark'
@@ -305,9 +333,7 @@
         title: 'Time',
         type: 'date',
         autorange: false,
-        // fixedrange: true,
-        range: [xMin, xMax],
-        constrain: 'range',
+        range: [xRangeStart, xMax],
         // Compress gaps (weekends, missing days) so chart appears continuous
         rangebreaks: dataGaps.map((g) => ({
           bounds: [g.lastBefore, g.firstAfter]
