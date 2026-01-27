@@ -64,6 +64,16 @@ endblock %} {% block extra_css %}
   .preset-btn {
     font-size: 0.75rem;
     padding: 0.2rem 0.5rem;
+    transition: all 0.15s ease-in-out;
+  }
+  .preset-btn.active {
+    background-color: #6c757d;
+    border-color: #6c757d;
+    color: white;
+  }
+  .preset-btn.active:hover {
+    background-color: #5c636a;
+    border-color: #565e64;
   }
   .selected-count {
     font-size: 0.8rem;
@@ -114,11 +124,11 @@ endblock %} {% block extra_css %}
         <div class="symbol-selector" id="symbolSelector">
           <!-- Populated dynamically from config -->
         </div>
-        <div class="mt-1">
-          <button type="button" class="btn btn-outline-secondary preset-btn" onclick="selectAllSymbols()">All</button>
-          <button type="button" class="btn btn-outline-secondary preset-btn" onclick="selectForexOnly()">Forex</button>
-          <button type="button" class="btn btn-outline-secondary preset-btn" onclick="selectIndicesOnly()">Indices</button>
-          <button type="button" class="btn btn-outline-secondary preset-btn" onclick="clearSymbols()">Clear</button>
+        <div class="mt-1" id="presetButtons">
+          <button type="button" class="btn btn-outline-secondary preset-btn" id="presetAll" onclick="togglePreset('all')">All</button>
+          <button type="button" class="btn btn-outline-secondary preset-btn" id="presetForex" onclick="togglePreset('forex')">Forex</button>
+          <button type="button" class="btn btn-outline-secondary preset-btn" id="presetIndices" onclick="togglePreset('indices')">Indices</button>
+          <button type="button" class="btn btn-outline-secondary preset-btn" id="presetClear" onclick="togglePreset('clear')">Clear</button>
         </div>
       </div>
       <div class="col-md-2">
@@ -294,6 +304,9 @@ endblock %} {% block extra_css %}
   // Index symbols (commission-free, spread only)
   const INDEX_SYMBOLS = ['NAS100', 'US500', 'US30', 'US2000', 'GER40', 'UK100']
 
+  // Track active preset button
+  let activePreset = null
+
   async function loadConfig() {
     try {
       const response = await fetch('/api/config')
@@ -301,8 +314,8 @@ endblock %} {% block extra_css %}
       if (result.success) {
         allSymbols = result.data.symbols || ['XAUUSD']
         populateSymbols(allSymbols)
-        // Select all by default
-        selectAllSymbols()
+        // Select all by default and set button state
+        togglePreset('all')
       }
     } catch (error) {
       console.error('Error fetching config:', error)
@@ -325,34 +338,87 @@ endblock %} {% block extra_css %}
     return Array.from(checkboxes).map(cb => cb.value)
   }
 
-  function updateSelectedCount() {
+  function updateSelectedCount(clearPreset = true) {
     const selected = getSelectedSymbols()
     const countEl = document.getElementById('selectedCount')
     countEl.textContent = `${selected.length} selected`
+
+    // Clear preset button state when user manually changes checkboxes
+    if (clearPreset && activePreset) {
+      activePreset = null
+      setPresetButtonState(null)
+    }
+  }
+
+  function setPresetButtonState(preset) {
+    // Remove active class from all preset buttons
+    document.querySelectorAll('#presetButtons .preset-btn').forEach(btn => {
+      btn.classList.remove('active')
+    })
+    // Add active class to the selected preset button (if any)
+    if (preset) {
+      const btnId = 'preset' + preset.charAt(0).toUpperCase() + preset.slice(1)
+      const activeBtn = document.getElementById(btnId)
+      if (activeBtn) {
+        activeBtn.classList.add('active')
+      }
+    }
+  }
+
+  function togglePreset(preset) {
+    // If clicking the same preset, toggle it off
+    if (activePreset === preset) {
+      activePreset = null
+      clearSymbols()
+      setPresetButtonState(null)
+      return
+    }
+
+    // Set new active preset
+    activePreset = preset
+
+    // Apply the preset selection
+    switch (preset) {
+      case 'all':
+        selectAllSymbols()
+        break
+      case 'forex':
+        selectForexOnly()
+        break
+      case 'indices':
+        selectIndicesOnly()
+        break
+      case 'clear':
+        clearSymbols()
+        activePreset = 'clear'
+        break
+    }
+
+    setPresetButtonState(preset)
   }
 
   function selectAllSymbols() {
     document.querySelectorAll('#symbolSelector input[type="checkbox"]').forEach(cb => cb.checked = true)
-    updateSelectedCount()
+    updateSelectedCount(false)
   }
 
   function selectForexOnly() {
     document.querySelectorAll('#symbolSelector input[type="checkbox"]').forEach(cb => {
       cb.checked = FOREX_SYMBOLS.includes(cb.value)
     })
-    updateSelectedCount()
+    updateSelectedCount(false)
   }
 
   function selectIndicesOnly() {
     document.querySelectorAll('#symbolSelector input[type="checkbox"]').forEach(cb => {
       cb.checked = INDEX_SYMBOLS.includes(cb.value)
     })
-    updateSelectedCount()
+    updateSelectedCount(false)
   }
 
   function clearSymbols() {
     document.querySelectorAll('#symbolSelector input[type="checkbox"]').forEach(cb => cb.checked = false)
-    updateSelectedCount()
+    updateSelectedCount(false)
   }
 
   function getBrokerLogo(brokerName) {
