@@ -29,24 +29,69 @@
 <div class="card">
   <div class="card-header d-flex justify-content-between align-items-center">
     <h5 class="mb-0">Spread Over Time</h5>
-    <div class="btn-group btn-group-sm" role="group">
-      <button
-        type="button"
-        class="btn btn-outline-secondary active"
-        onclick="setYAxis('points')"
-      >
-        Points
-      </button>
-      <button
-        type="button"
-        class="btn btn-outline-secondary"
-        onclick="setYAxis('spread')"
-      >
-        Price
-      </button>
+    <div class="d-flex gap-2">
+      <div class="btn-group btn-group-sm" role="group">
+        <button
+          type="button"
+          class="btn btn-outline-secondary active"
+          onclick="setYAxis('points')"
+        >
+          Points
+        </button>
+        <button
+          type="button"
+          class="btn btn-outline-secondary"
+          onclick="setYAxis('spread')"
+        >
+          Price
+        </button>
+      </div>
+      <div class="btn-group btn-group-sm" role="group">
+        <button
+          type="button"
+          class="btn btn-outline-secondary active"
+          id="scaleAuto"
+          onclick="setScaleMode('auto')"
+        >
+          Auto Scale
+        </button>
+        <button
+          type="button"
+          class="btn btn-outline-secondary"
+          id="scaleFull"
+          onclick="setScaleMode('full')"
+        >
+          Full Range
+        </button>
+      </div>
+      <div class="btn-group btn-group-sm" role="group">
+        <button type="button" class="btn btn-outline-secondary active" id="zoom1d" onclick="setZoom(1)">1D</button>
+        <button type="button" class="btn btn-outline-secondary" id="zoom3d" onclick="setZoom(3)">3D</button>
+        <button type="button" class="btn btn-outline-secondary" id="zoom7d" onclick="setZoom(7)">7D</button>
+        <button type="button" class="btn btn-outline-secondary" id="zoomAll" onclick="setZoom(0)">All</button>
+      </div>
     </div>
   </div>
-  <div class="card-body">
+  <div class="card-body" style="position: relative">
+    <div
+      id="hoverOverlay"
+      style="
+        position: absolute;
+        top: 8px;
+        left: 100px;
+        z-index: 10;
+        pointer-events: none;
+        font-family: monospace;
+        font-size: 12px;
+        line-height: 1.6;
+        text-align: left;
+        opacity: 0;
+        transition: opacity 0.15s;
+        background: var(--hover-overlay-bg, rgba(255, 255, 255, 0.85));
+        padding: 6px 10px;
+        border-radius: 4px;
+      "
+    ></div>
     <div id="historyChart" class="chart-container"></div>
   </div>
 </div>
@@ -65,6 +110,8 @@
 <script>
   let chartData = null
   let currentYAxis = 'points'
+  let scaleMode = 'auto' // 'auto' = 99th percentile cap, 'full' = show all
+  let zoomDays = 1 // 0 = show all, otherwise number of days visible
   let collectionInterval = 5 // Default, will be fetched from config
 
   async function loadConfig() {
@@ -83,9 +130,12 @@
 
   function populateSymbols(symbols) {
     const select = document.getElementById('symbol')
-    select.innerHTML = symbols.map((s, i) =>
-      `<option value="${s}"${i === 0 ? ' selected' : ''}>${s}</option>`
-    ).join('')
+    select.innerHTML = symbols
+      .map(
+        (s, i) =>
+          `<option value="${s}"${i === 0 ? ' selected' : ''}>${s}</option>`
+      )
+      .join('')
   }
 
   // Set default dates (today and 7 days ago)
@@ -102,13 +152,82 @@
 
   function setYAxis(type) {
     currentYAxis = type
-    document.querySelectorAll('.btn-group .btn').forEach((btn) => {
-      btn.classList.remove('active')
-    })
+    event.target
+      .closest('.btn-group')
+      .querySelectorAll('.btn')
+      .forEach((btn) => {
+        btn.classList.remove('active')
+      })
     event.target.classList.add('active')
     if (chartData) {
       renderChart(chartData)
     }
+  }
+
+  function setScaleMode(mode) {
+    scaleMode = mode
+    document
+      .getElementById('scaleAuto')
+      .classList.toggle('active', mode === 'auto')
+    document
+      .getElementById('scaleFull')
+      .classList.toggle('active', mode === 'full')
+    if (chartData) {
+      renderChart(chartData)
+    }
+  }
+
+  function setZoom(days) {
+    zoomDays = days
+    document.getElementById('zoom1d').classList.toggle('active', days === 1)
+    document.getElementById('zoom3d').classList.toggle('active', days === 3)
+    document.getElementById('zoom7d').classList.toggle('active', days === 7)
+    document.getElementById('zoomAll').classList.toggle('active', days === 0)
+    if (chartData) {
+      renderChart(chartData)
+    }
+  }
+
+  function percentile(arr, p) {
+    const sorted = [...arr].sort((a, b) => a - b)
+    const idx = (p / 100) * (sorted.length - 1)
+    const lower = Math.floor(idx)
+    const upper = Math.ceil(idx)
+    if (lower === upper) return sorted[lower]
+    return sorted[lower] + (sorted[upper] - sorted[lower]) * (idx - lower)
+  }
+
+  function findDataGaps(data) {
+    // Find gaps where entire days are missing (weekends, deleted files, etc.)
+    // Only compress when the gap spans non-consecutive calendar dates,
+    // so intra-day outages are shown as-is (flat lines).
+    const timestamps = [...new Set(data.map((d) => d.timestamp))].sort()
+    const gaps = []
+
+    for (let i = 1; i < timestamps.length; i++) {
+      const prevDate = new Date(timestamps[i - 1])
+      const currDate = new Date(timestamps[i])
+
+      // Get calendar dates (YYYY-MM-DD)
+      const prevDay = timestamps[i - 1].split(' ')[0]
+      const currDay = timestamps[i].split(' ')[0]
+
+      // Check if there are missing calendar days between the two points
+      const prevDayEnd = new Date(prevDay + 'T23:59:59')
+      const currDayStart = new Date(currDay + 'T00:00:00')
+      const daysBetween = Math.floor(
+        (currDayStart - prevDayEnd) / (1000 * 60 * 60 * 24)
+      )
+
+      if (prevDay !== currDay && daysBetween >= 1) {
+        gaps.push({
+          lastBefore: timestamps[i - 1],
+          firstAfter: timestamps[i]
+        })
+      }
+    }
+
+    return gaps
   }
 
   function renderChart(data) {
@@ -121,36 +240,116 @@
     // Group data by broker
     const brokers = [...new Set(data.map((d) => d.broker))]
 
+    // Gap threshold: if two consecutive points for a broker are more than
+    // 6x the collection interval apart, break the line (show blank space).
+    const gapThreshold = collectionInterval * 6 * 60 * 1000
+
     const traces = brokers.map((broker) => {
-      const brokerData = data.filter((d) => d.broker === broker)
+      const brokerData = data
+        .filter((d) => d.broker === broker)
+        .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+
+      const x = []
+      const y = []
+
+      for (let i = 0; i < brokerData.length; i++) {
+        if (i > 0) {
+          const prev = new Date(brokerData[i - 1].timestamp)
+          const curr = new Date(brokerData[i].timestamp)
+          if (curr - prev > gapThreshold) {
+            // Insert null to break the line at the gap
+            x.push(brokerData[i - 1].timestamp)
+            y.push(null)
+          }
+        }
+        x.push(brokerData[i].timestamp)
+        y.push(
+          currentYAxis === 'points'
+            ? brokerData[i].spread_points
+            : brokerData[i].spread
+        )
+      }
+
       return {
-        x: brokerData.map((d) => d.timestamp),
-        y: brokerData.map((d) =>
-          currentYAxis === 'points' ? d.spread_points : d.spread
-        ),
+        x,
+        y,
         type: 'scatter',
-        mode: 'lines+markers',
+        mode: 'lines',
         name: broker,
-        line: { color: getBrokerColor(broker), width: 2 },
-        marker: { size: 4 }
+        connectgaps: false,
+        line: {
+          color: getBrokerColor(broker),
+          width: 1.5,
+          shape: 'spline',
+          smoothing: 0.8
+        },
+        hoverinfo: 'none'
       }
     })
+
+    // Find data gaps for rangebreaks (compress weekends, missing days, etc.)
+    const dataGaps = findDataGaps(data)
+
+    // Compute y-axis upper bound
+    const yValues = data.map((d) =>
+      currentYAxis === 'points' ? d.spread_points : d.spread
+    )
+    const yMax = Math.max(...yValues)
+    const p99 = percentile(yValues, 99)
+    const yUpperBound =
+      scaleMode === 'auto'
+        ? p99 * 1.2 + 1 // 95th percentile + 30% padding (clips rollover spikes)
+        : yMax * 1.1 + 1 // Full range with 10% padding
+    // Floor padding: -5 for points mode, proportional for price mode
+    const yFloor = currentYAxis === 'points' ? -5 : -(yUpperBound * 0.1)
 
     const symbol = document.getElementById('symbol').value
     const interval = collectionInterval + 'm'
 
+    // Compute x-axis boundaries from the data
+    const allTimestamps = data.map((d) => d.timestamp).sort()
+    const xMin = allTimestamps[0]
+    const xMax = allTimestamps[allTimestamps.length - 1]
+
+    // Visible window: show last N days, or all if zoomDays === 0
+    let xRangeStart = xMin
+    if (zoomDays > 0) {
+      const maxDate = new Date(xMax)
+      const windowStart = new Date(maxDate.getTime() - zoomDays * 24 * 60 * 60 * 1000)
+      const windowStartStr = windowStart.toISOString().replace('T', ' ').slice(0, 19)
+      // Don't go before the data start
+      xRangeStart = windowStartStr > xMin ? windowStartStr : xMin
+    }
+
     const themeLayout = getPlotlyThemeLayout()
+    const isDark =
+      document.documentElement.getAttribute('data-bs-theme') === 'dark'
+    const spikeColor = isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.3)'
+
     const layout = {
       ...themeLayout,
       xaxis: {
         ...themeLayout.xaxis,
         title: 'Time',
-        type: 'date'
+        type: 'date',
+        autorange: false,
+        range: [xRangeStart, xMax],
+        // Compress gaps (weekends, missing days) so chart appears continuous
+        rangebreaks: dataGaps.map((g) => ({
+          bounds: [g.lastBefore, g.firstAfter]
+        })),
+        showspikes: true,
+        spikemode: 'across',
+        spikethickness: 1,
+        spikecolor: spikeColor,
+        spikedash: 'dot'
       },
       yaxis: {
         ...themeLayout.yaxis,
         title: currentYAxis === 'points' ? 'Spread (Points)' : 'Spread (Price)',
-        rangemode: 'tozero',
+        rangemode: 'normal',
+        autorange: false,
+        range: [yFloor, yUpperBound],
         fixedrange: true
       },
       legend: {
@@ -158,7 +357,8 @@
         y: -0.2
       },
       margin: { t: 40, r: 20 },
-      hovermode: 'x unified',
+      hovermode: 'x',
+      spikedistance: -1,
       dragmode: 'pan',
       annotations: [
         {
@@ -187,6 +387,49 @@
     }
 
     Plotly.newPlot('historyChart', traces, layout, config)
+
+    const chartEl = document.getElementById('historyChart')
+    const overlay = document.getElementById('hoverOverlay')
+    const unit = currentYAxis === 'points' ? ' pts' : ''
+
+    chartEl.on('plotly_hover', function (eventData) {
+      if (!eventData.points || eventData.points.length === 0) return
+
+      const date = new Date(eventData.points[0].x)
+      const timeStr =
+        date.getFullYear() +
+        '-' +
+        String(date.getMonth() + 1).padStart(2, '0') +
+        '-' +
+        String(date.getDate()).padStart(2, '0') +
+        ' ' +
+        String(date.getHours()).padStart(2, '0') +
+        ':' +
+        String(date.getMinutes()).padStart(2, '0')
+
+      // All traces at this x position (hovermode 'x' gives all)
+      const entries = eventData.points
+        .filter((p) => p.y != null)
+        .map((p) => ({
+          name: p.data.name,
+          color: p.data.line.color,
+          value: p.y
+        }))
+        .sort((a, b) => b.value - a.value)
+
+      let html = `<span style="color:var(--text-muted-custom, #888)">${timeStr}</span><br>`
+      entries.forEach((e) => {
+        const val = Number.isInteger(e.value) ? e.value : e.value.toFixed(2)
+        html += `<span style="color:${e.color}"><b>${e.name}:</b> ${val}${unit}</span><br>`
+      })
+
+      overlay.innerHTML = html
+      overlay.style.opacity = '1'
+    })
+
+    chartEl.on('plotly_unhover', function () {
+      overlay.style.opacity = '0'
+    })
   }
 
   function renderSummary(data) {
