@@ -259,7 +259,12 @@
         mode: 'lines',
         name: broker,
         connectgaps: false,
-        line: { color: getBrokerColor(broker), width: 1.5 },
+        line: {
+          color: getBrokerColor(broker),
+          width: 1.5,
+          shape: 'spline',
+          smoothing: 0.8
+        },
         hoverinfo: 'none'
       }
     })
@@ -277,9 +282,16 @@
       scaleMode === 'auto'
         ? p99 * 1.2 + 1 // 95th percentile + 30% padding (clips rollover spikes)
         : yMax * 1.1 + 1 // Full range with 10% padding
+    // Floor padding: -5 for points mode, proportional for price mode
+    const yFloor = currentYAxis === 'points' ? -5 : -(yUpperBound * 0.1)
 
     const symbol = document.getElementById('symbol').value
     const interval = collectionInterval + 'm'
+
+    // Compute x-axis boundaries from the data
+    const allTimestamps = data.map((d) => d.timestamp).sort()
+    const xMin = allTimestamps[0]
+    const xMax = allTimestamps[allTimestamps.length - 1]
 
     const themeLayout = getPlotlyThemeLayout()
     const isDark =
@@ -292,6 +304,10 @@
         ...themeLayout.xaxis,
         title: 'Time',
         type: 'date',
+        autorange: false,
+        // fixedrange: true,
+        range: [xMin, xMax],
+        constrain: 'range',
         // Compress gaps (weekends, missing days) so chart appears continuous
         rangebreaks: dataGaps.map((g) => ({
           bounds: [g.lastBefore, g.firstAfter]
@@ -307,7 +323,7 @@
         title: currentYAxis === 'points' ? 'Spread (Points)' : 'Spread (Price)',
         rangemode: 'normal',
         autorange: false,
-        range: [-5, yUpperBound],
+        range: [yFloor, yUpperBound],
         fixedrange: true
       },
       legend: {
