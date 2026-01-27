@@ -54,7 +54,10 @@ VIRTUAL_BROKERS = [
         "source_broker": "VantageMarkets Raw",  # Use spread data from this broker
         "website": "vantagemarkets.com",  # Same website for logo
         "commission_per_lot": 2.00,  # A$1 per side = A$2 round trip
-        "commission_free_symbols": ["XAU", "XAG"]  # Same as regular Vantage
+        "commission_free_symbols": [
+            "XAU", "XAG",
+            "NAS100", "US500", "US30", "US2000", "GER40", "UK100"
+        ]
     }
 ]
 
