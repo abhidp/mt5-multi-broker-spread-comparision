@@ -54,9 +54,16 @@ VIRTUAL_BROKERS = [
         "source_broker": "VantageMarkets Raw",  # Use spread data from this broker
         "website": "vantagemarkets.com",  # Same website for logo
         "commission_per_lot": 2.00,  # A$1 per side = A$2 round trip
-        "commission_free_symbols": ["XAU", "XAG"]  # Same as regular Vantage
+        "commission_free_symbols": [
+            "XAU", "XAG",
+            "NAS100", "US500", "US30", "US2000", "GER40", "UK100"
+        ]
     }
 ]
+
+# Index symbols - use spread (price difference) instead of spread_points for cost calculation
+# because different brokers quote indices with different decimal precision
+INDEX_SYMBOLS = ["NAS100", "US500", "US30", "US2000", "GER40", "UK100"]
 
 
 # =============================================================================
@@ -438,7 +445,10 @@ def api_trading_costs():
             df_symbol = df[df["symbol"] == symbol]
 
             # Calculate average spread per broker
-            broker_stats = df_symbol.groupby("broker")["spread_points"].agg([
+            # For indices, use 'spread' (price difference) because brokers have different decimal precision
+            # For other symbols, use 'spread_points' which is normalized
+            spread_column = "spread" if symbol in INDEX_SYMBOLS else "spread_points"
+            broker_stats = df_symbol.groupby("broker")[spread_column].agg([
                 ("avg", "mean")
             ]).reset_index().to_dict(orient="records")
 
@@ -492,7 +502,9 @@ def api_trading_costs():
             for symbol in symbols:
                 df_symbol = df[df["symbol"] == symbol]
                 if not df_symbol.empty:
-                    broker_stats = df_symbol.groupby("broker")["spread_points"].agg([
+                    # For indices, use 'spread' (price difference) because brokers have different decimal precision
+                    spread_column = "spread" if symbol in INDEX_SYMBOLS else "spread_points"
+                    broker_stats = df_symbol.groupby("broker")[spread_column].agg([
                         ("avg", "mean")
                     ]).reset_index().to_dict(orient="records")
 

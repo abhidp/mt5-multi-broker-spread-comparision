@@ -12,7 +12,7 @@ from typing import Dict, List, Optional
 # These represent the value of 1 point movement in AUD for AUD base currency accounts
 # Assumes approximate AUDUSD rate of 0.63-0.65
 POINT_VALUES_AUD = {
-    # Forex pairs (pip values)
+    # Forex pairs (pip values - per pip per standard lot)
     "XAUUSD": 1.55,      # Gold: ~A$1.55 per point per lot (USD 1.00 / 0.645)
     "EURUSD": 15.50,     # EUR/USD: ~A$15.50 per pip per lot
     "GBPUSD": 15.50,     # GBP/USD: ~A$15.50 per pip per lot
@@ -21,13 +21,14 @@ POINT_VALUES_AUD = {
     "USDCAD": 11.60,     # USD/CAD: ~A$11.60 per pip (varies with rate)
     "USDCHF": 17.05,     # USD/CHF: ~A$17.05 per pip (varies with rate)
     "NZDUSD": 15.50,     # NZD/USD: ~A$15.50 per pip per lot
-    # Index CFDs (point values - typically $1 USD per point per contract)
-    "NAS100": 1.55,      # NASDAQ 100: ~A$1.55 per point
-    "US500": 1.55,       # S&P 500: ~A$1.55 per point
-    "US30": 1.55,        # Dow Jones 30: ~A$1.55 per point
-    "US2000": 1.55,      # Russell 2000: ~A$1.55 per point
-    "GER40": 1.75,       # German DAX 40: ~A$1.75 per point (EUR based)
-    "UK100": 2.00,       # UK FTSE 100: ~A$2.00 per point (GBP based)
+    "GBPJPY": 10.40,     # GBP/JPY: ~A$10.40 per pip (varies with rate, similar to USDJPY)
+    # Index CFDs (per 1.0 price movement per contract - spread value used directly)
+    "NAS100": 1.55,      # NASDAQ 100: ~A$1.55 per 1.0 spread
+    "US500": 1.55,       # S&P 500: ~A$1.55 per 1.0 spread
+    "US30": 1.55,        # Dow Jones 30: ~A$1.55 per 1.0 spread
+    "US2000": 1.55,      # Russell 2000: ~A$1.55 per 1.0 spread
+    "GER40": 1.75,       # German DAX 40: ~A$1.75 per 1.0 spread (EUR based)
+    "UK100": 2.00,       # UK FTSE 100: ~A$2.00 per 1.0 spread (GBP based)
 }
 
 # Default point value for unknown symbols (in AUD)

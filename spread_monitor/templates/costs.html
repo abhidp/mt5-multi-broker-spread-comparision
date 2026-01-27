@@ -116,7 +116,8 @@ endblock %} {% block extra_css %}
         </div>
         <div class="mt-1">
           <button type="button" class="btn btn-outline-secondary preset-btn" onclick="selectAllSymbols()">All</button>
-          <button type="button" class="btn btn-outline-secondary preset-btn" onclick="selectForexOnly()">Forex Only</button>
+          <button type="button" class="btn btn-outline-secondary preset-btn" onclick="selectForexOnly()">Forex</button>
+          <button type="button" class="btn btn-outline-secondary preset-btn" onclick="selectIndicesOnly()">Indices</button>
           <button type="button" class="btn btn-outline-secondary preset-btn" onclick="clearSymbols()">Clear</button>
         </div>
       </div>
@@ -288,7 +289,10 @@ endblock %} {% block extra_css %}
   let currencyCode = 'AUD'
 
   // Forex symbols (no gold/commodities/indices)
-  const FOREX_SYMBOLS = ['EURUSD', 'GBPUSD', 'USDJPY', 'AUDUSD', 'USDCAD', 'NZDUSD', 'USDCHF']
+  const FOREX_SYMBOLS = ['EURUSD', 'GBPUSD', 'USDJPY', 'AUDUSD', 'USDCAD', 'USDCHF', 'NZDUSD', 'GBPJPY']
+
+  // Index symbols (commission-free, spread only)
+  const INDEX_SYMBOLS = ['NAS100', 'US500', 'US30', 'US2000', 'GER40', 'UK100']
 
   async function loadConfig() {
     try {
@@ -335,6 +339,13 @@ endblock %} {% block extra_css %}
   function selectForexOnly() {
     document.querySelectorAll('#symbolSelector input[type="checkbox"]').forEach(cb => {
       cb.checked = FOREX_SYMBOLS.includes(cb.value)
+    })
+    updateSelectedCount()
+  }
+
+  function selectIndicesOnly() {
+    document.querySelectorAll('#symbolSelector input[type="checkbox"]').forEach(cb => {
+      cb.checked = INDEX_SYMBOLS.includes(cb.value)
     })
     updateSelectedCount()
   }
