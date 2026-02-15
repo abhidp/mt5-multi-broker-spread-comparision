@@ -29,6 +29,14 @@ from utils.cost_calculator import (
 
 app = Flask(__name__)
 
+# Optional URL prefix for reverse proxy (e.g., Tailscale Funnel path-based routing)
+# Set URL_PREFIX=/spreads in environment to serve at /spreads
+URL_PREFIX = os.environ.get('URL_PREFIX', '')
+if URL_PREFIX:
+    from werkzeug.middleware.dispatcher import DispatcherMiddleware
+    from werkzeug.exceptions import NotFound
+    app.wsgi_app = DispatcherMiddleware(NotFound(), {URL_PREFIX: app.wsgi_app})
+
 # Load configuration
 CONFIG_PATH = "config.json"
 

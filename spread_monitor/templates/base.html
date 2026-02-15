@@ -248,14 +248,14 @@
             color: isDark ? '#e9ecef' : '#333333'
           },
           xaxis: {
-            gridcolor: isDark ? '#495057' : '#e0e0e0',
-            linecolor: isDark ? '#495057' : '#e0e0e0',
-            zerolinecolor: isDark ? '#495057' : '#e0e0e0'
+            gridcolor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.02)',
+            linecolor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,1)',
+            zerolinecolor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'
           },
           yaxis: {
-            gridcolor: isDark ? '#495057' : '#e0e0e0',
-            linecolor: isDark ? '#495057' : '#e0e0e0',
-            zerolinecolor: isDark ? '#495057' : '#e0e0e0'
+            gridcolor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.02)',
+            linecolor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,1)',
+            zerolinecolor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'
           },
           coloraxis: {
             colorbar: {
@@ -279,6 +279,9 @@
 
       // Initialize theme on page load (before content renders)
       setTheme(getPreferredTheme())
+
+      // Base URL prefix for API calls (supports reverse proxy path routing)
+      const BASE_URL = "{{ request.script_root }}"
 
       // Global broker color mapping for consistent colors across all charts
       const BROKER_COLORS = {

@@ -65,10 +65,38 @@
         </button>
       </div>
       <div class="btn-group btn-group-sm" role="group">
-        <button type="button" class="btn btn-outline-secondary active" id="zoom1d" onclick="setZoom(1)">1D</button>
-        <button type="button" class="btn btn-outline-secondary" id="zoom3d" onclick="setZoom(3)">3D</button>
-        <button type="button" class="btn btn-outline-secondary" id="zoom7d" onclick="setZoom(7)">7D</button>
-        <button type="button" class="btn btn-outline-secondary" id="zoomAll" onclick="setZoom(0)">All</button>
+        <button
+          type="button"
+          class="btn btn-outline-secondary active"
+          id="zoom1d"
+          onclick="setZoom(1)"
+        >
+          1D
+        </button>
+        <button
+          type="button"
+          class="btn btn-outline-secondary"
+          id="zoom3d"
+          onclick="setZoom(3)"
+        >
+          3D
+        </button>
+        <button
+          type="button"
+          class="btn btn-outline-secondary"
+          id="zoom7d"
+          onclick="setZoom(7)"
+        >
+          7D
+        </button>
+        <button
+          type="button"
+          class="btn btn-outline-secondary"
+          id="zoomAll"
+          onclick="setZoom(0)"
+        >
+          All
+        </button>
       </div>
     </div>
   </div>
@@ -116,7 +144,7 @@
 
   async function loadConfig() {
     try {
-      const response = await fetch('/api/config')
+      const response = await fetch(BASE_URL + '/api/config')
       const result = await response.json()
       if (result.success) {
         collectionInterval = result.data.collection_interval_minutes
@@ -315,8 +343,13 @@
     let xRangeStart = xMin
     if (zoomDays > 0) {
       const maxDate = new Date(xMax)
-      const windowStart = new Date(maxDate.getTime() - zoomDays * 24 * 60 * 60 * 1000)
-      const windowStartStr = windowStart.toISOString().replace('T', ' ').slice(0, 19)
+      const windowStart = new Date(
+        maxDate.getTime() - zoomDays * 24 * 60 * 60 * 1000
+      )
+      const windowStartStr = windowStart
+        .toISOString()
+        .replace('T', ' ')
+        .slice(0, 19)
       // Don't go before the data start
       xRangeStart = windowStartStr > xMin ? windowStartStr : xMin
     }
@@ -479,7 +512,7 @@
 
     try {
       const response = await fetch(
-        `/api/history?start=${startDate}&end=${endDate}&symbol=${symbol}`
+        `${BASE_URL}/api/history?start=${startDate}&end=${endDate}&symbol=${symbol}`
       )
       const result = await response.json()
 

@@ -123,7 +123,7 @@
 
     async function loadConfig() {
         try {
-            const response = await fetch('/api/config');
+            const response = await fetch(BASE_URL + '/api/config');
             const result = await response.json();
             if (result.success) {
                 populateSymbols(result.data.symbols || ['XAUUSD']);
@@ -193,7 +193,7 @@
 
     async function loadBrokerMeta() {
         try {
-            const response = await fetch('/api/brokers');
+            const response = await fetch(BASE_URL + '/api/brokers');
             const result = await response.json();
             if (result.success) {
                 brokerMeta = result.data;
@@ -389,7 +389,7 @@
         const symbol = document.getElementById('symbol').value;
 
         try {
-            const response = await fetch(`/api/sessions?start=${startDate}&end=${endDate}&symbol=${symbol}`);
+            const response = await fetch(`${BASE_URL}/api/sessions?start=${startDate}&end=${endDate}&symbol=${symbol}`);
             const result = await response.json();
 
             if (result.success) {

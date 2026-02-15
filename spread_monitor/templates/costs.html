@@ -309,7 +309,7 @@ endblock %} {% block extra_css %}
 
   async function loadConfig() {
     try {
-      const response = await fetch('/api/config')
+      const response = await fetch(BASE_URL + '/api/config')
       const result = await response.json()
       if (result.success) {
         allSymbols = result.data.symbols || ['XAUUSD']
@@ -431,7 +431,7 @@ endblock %} {% block extra_css %}
 
   async function loadBrokerMeta() {
     try {
-      const response = await fetch('/api/brokers')
+      const response = await fetch(BASE_URL + '/api/brokers')
       const result = await response.json()
       if (result.success) {
         brokerMeta = result.data
@@ -916,10 +916,10 @@ endblock %} {% block extra_css %}
       let apiUrl
       if (isBasketMode) {
         // Multi-symbol: use symbols param (comma-separated)
-        apiUrl = `/api/trading-costs?start=${startDate}&end=${endDate}&symbols=${selectedSymbols.join(',')}&lot_size=${lotSize}`
+        apiUrl = `${BASE_URL}/api/trading-costs?start=${startDate}&end=${endDate}&symbols=${selectedSymbols.join(',')}&lot_size=${lotSize}`
       } else {
         // Single symbol: use symbol param for backward compatibility
-        apiUrl = `/api/trading-costs?start=${startDate}&end=${endDate}&symbol=${selectedSymbols[0]}&lot_size=${lotSize}`
+        apiUrl = `${BASE_URL}/api/trading-costs?start=${startDate}&end=${endDate}&symbol=${selectedSymbols[0]}&lot_size=${lotSize}`
       }
 
       const response = await fetch(apiUrl)
