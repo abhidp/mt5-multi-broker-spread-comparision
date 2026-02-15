@@ -280,6 +280,9 @@
       // Initialize theme on page load (before content renders)
       setTheme(getPreferredTheme())
 
+      // Base URL prefix for API calls (supports reverse proxy path routing)
+      const BASE_URL = "{{ request.script_root }}"
+
       // Global broker color mapping for consistent colors across all charts
       const BROKER_COLORS = {
         'Pepperstone Razor': '#0d6efd', // Blue

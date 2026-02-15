@@ -175,7 +175,7 @@ endblock %} {% block extra_css %}
 
   async function loadConfig() {
     try {
-      const response = await fetch('/api/config')
+      const response = await fetch(BASE_URL + '/api/config')
       const result = await response.json()
       if (result.success) {
         populateSymbols(result.data.symbols || ['XAUUSD'])
@@ -252,7 +252,7 @@ endblock %} {% block extra_css %}
 
   async function loadBrokerMeta() {
     try {
-      const response = await fetch('/api/brokers')
+      const response = await fetch(BASE_URL + '/api/brokers')
       const result = await response.json()
       if (result.success) {
         brokerMeta = result.data
@@ -449,13 +449,13 @@ endblock %} {% block extra_css %}
     try {
       // Fetch stats
       const statsResponse = await fetch(
-        `/api/stats?start=${startDate}&end=${endDate}&symbol=${symbol}`
+        `${BASE_URL}/api/stats?start=${startDate}&end=${endDate}&symbol=${symbol}`
       )
       const statsResult = await statsResponse.json()
 
       // Fetch raw data for box plot and histogram
       const historyResponse = await fetch(
-        `/api/history?start=${startDate}&end=${endDate}&symbol=${symbol}`
+        `${BASE_URL}/api/history?start=${startDate}&end=${endDate}&symbol=${symbol}`
       )
       const historyResult = await historyResponse.json()
 

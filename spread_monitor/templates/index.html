@@ -216,7 +216,7 @@ endblock %} {% block extra_css %}
 
   async function loadConfig() {
     try {
-      const response = await fetch('/api/config')
+      const response = await fetch(BASE_URL + '/api/config')
       const result = await response.json()
       if (result.success) {
         allSymbols = result.data.symbols || []
@@ -294,7 +294,7 @@ endblock %} {% block extra_css %}
 
   async function loadBrokerMeta() {
     try {
-      const response = await fetch('/api/brokers')
+      const response = await fetch(BASE_URL + '/api/brokers')
       const result = await response.json()
       if (result.success) {
         brokerMeta = result.data
@@ -555,7 +555,7 @@ endblock %} {% block extra_css %}
     spinner.classList.remove('d-none')
 
     try {
-      const response = await fetch('/api/live')
+      const response = await fetch(BASE_URL + '/api/live')
       const result = await response.json()
 
       if (result.success) {
